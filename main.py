@@ -11,6 +11,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
+# === Token dari ENV (Render) ===
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8167264410:AAHYQgPVe_HyqIQLxZ6yuGFABWCw5Bb-P74")
 
 # === Logging config ===
@@ -87,7 +88,6 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     msg = update.message
 
-    # cek tipe media
     if msg.photo:
         media_type = "Photo"
     elif msg.video:
@@ -127,7 +127,7 @@ def main():
     app.job_queue.run_repeating(send_reminder, interval=300, first=10)
 
     logger.info("Starting bot...")
-    app.run_polling(close_loop=False)  # penting di Render
+    app.run_polling(close_loop=False)  # wajib di Render
 
 if __name__ == "__main__":
     main()
