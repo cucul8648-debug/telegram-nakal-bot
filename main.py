@@ -1,13 +1,5 @@
 """
 Telegram bot (python-telegram-bot v20) with expressive outputs + file logging.
-
-Features:
-- Greeting with emoji + gender mapping + sticker (fallback to emoji text)
-- Enforcement messages (link, missing name/username, bio link, not joined)
-- Media forwarding (photo/video/voice/audio)
-- Reminder every 5 minutes
-- Local execution (no Flask). Run locally or on VPS.
-- File logging to bot_activity.log
 """
 
 import logging, os, re
@@ -16,7 +8,6 @@ from telegram.ext import (
     Application,
     MessageHandler,
     filters,
-    CommandHandler,
     ContextTypes,
 )
 
@@ -56,8 +47,8 @@ async def send_with_sticker(bot, chat_id: int, text: str, sticker: str):
     try:
         await bot.send_message(chat_id, text, parse_mode="Markdown")
         await bot.send_sticker(chat_id, sticker)
-    except Exception:
-        logger.warning("Sticker gagal dikirim, fallback ke teks saja.")
+    except Exception as e:
+        logger.warning(f"Sticker gagal dikirim: {e}, fallback teks.")
         await bot.send_message(chat_id, text, parse_mode="Markdown")
 
 # === Handlers ===
@@ -76,16 +67,18 @@ async def filter_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     msg = update.message
 
-    # Wajib nama/username
     if not user.username and not user.full_name:
-        await send_with_sticker(context.bot, msg.chat_id, "⚠️ Pesan dihapus: Kamu wajib pasang nama + username dulu ✨", STICKER_WARNING)
+        await send_with_sticker(context.bot, msg.chat.id,
+                                "⚠️ Pesan dihapus: Kamu wajib pasang nama + username dulu ✨",
+                                STICKER_WARNING)
         await msg.delete()
         file_logger.info(f"DELETE | User: {user.id} | Reason: Tidak ada nama/username")
         return
 
-    # Filter link
     if msg.text and re.search(r"https?://", msg.text):
-        await send_with_sticker(context.bot, msg.chat_id, "🚫 Pesan dihapus: Dilarang kirim link di sini 😡", STICKER_WARNING)
+        await send_with_sticker(context.bot, msg.chat.id,
+                                "🚫 Pesan dihapus: Dilarang kirim link di sini 😡",
+                                STICKER_WARNING)
         await msg.delete()
         file_logger.info(f"DELETE | User: {user.id} | Reason: Link terdeteksi")
         return
@@ -93,16 +86,26 @@ async def filter_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     msg = update.message
-    await send_with_sticker(
-        context.bot,
-        msg.chat_id,
-        "📤 Konten kamu sudah diteruskan ke channel terkait! 🔥\nTerus kirim yaaa 😘",
-        STICKER_FIRE,
-    )
-    file_logger.info(f"FORWARD| User: {user.full_name} (@{user.username}) | Media: {msg.effective_attachment.__class__.__name__}")
+
+    # cek tipe media
+    if msg.photo:
+        media_type = "Photo"
+    elif msg.video:
+        media_type = "Video"
+    elif msg.voice:
+        media_type = "Voice"
+    elif msg.audio:
+        media_type = "Audio"
+    else:
+        media_type = "Unknown"
+
+    await send_with_sticker(context.bot, msg.chat.id,
+                            "📤 Konten kamu sudah diteruskan ke channel terkait! 🔥\nTerus kirim yaaa 😘",
+                            STICKER_FIRE)
+    file_logger.info(f"FORWARD| User: {user.full_name} (@{user.username}) | Media: {media_type}")
 
 async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
-    chat_id = -1003098333444  # Ganti dengan group target
+    chat_id = -1003098333444  # ganti sesuai group target
     text = (
         "⏰ *hello everyone!*\n"
         "👉 Silahkan kirim *pap nakal* kalian melalui:\n"
@@ -117,16 +120,14 @@ async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Handlers
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, greet))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, filter_message))
     app.add_handler(MessageHandler(filters.PHOTO | filters.VIDEO | filters.VOICE | filters.AUDIO, handle_media))
 
-    # Reminder tiap 5 menit
     app.job_queue.run_repeating(send_reminder, interval=300, first=10)
 
     logger.info("Starting bot...")
-    app.run_polling()
+    app.run_polling(close_loop=False)  # penting di Render
 
 if __name__ == "__main__":
     main()
