@@ -127,7 +127,7 @@ def main():
     app.job_queue.run_repeating(send_reminder, interval=300, first=10)
 
     logger.info("Starting bot...")
-    app.run_polling(close_loop=False)  # wajib di Render
+    app.run_polling()  
 
 if __name__ == "__main__":
     main()
