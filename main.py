@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import os
 from flask import Flask
 import threading
+import asyncio
 
 # Flask app
 app_flask = Flask(__name__)
@@ -17,6 +18,7 @@ def home():
 
 # ===== KONFIGURASI =====
 TOKEN = "8466148433:AAH0yuuC3zetTYRysTkxmfCnc9JTqdwcXpI"
+PORT = int(os.environ.get("PORT", 10000))
 
 GC_NABRUTT = -1003098333444
 DISCUSSION_GROUP = -1003033445498
@@ -103,20 +105,13 @@ def rating_keyboard(message_id):
 scheduler = AsyncIOScheduler()
 
 def reset_top_daily():
-    # Hanya menghitung ulang top harian saat command /top, data rating tidak dihapus
     print("✅ Reset top harian (data rating tetap tersimpan)")
-
-scheduler.add_job(reset_top_daily,'cron',hour=0,minute=0)
-scheduler.start()
 
 # ===== HANDLER CONTENT =====
 async def handle_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global counter
     caption_user = update.message.caption or update.message.text or "Tanpa keterangan"
-
-    # User wajib sertakan nama panggung di caption
     stage_name = caption_user.split()[0] if caption_user else "Anon"
-
     is_media = bool(update.message.photo or update.message.video)
     is_audio = bool(update.message.voice or update.message.audio)
     is_text = bool(update.message.text and not update.message.caption)
@@ -164,7 +159,6 @@ async def handle_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = rating_keyboard("tmp")
     msg = None
 
-    # Mengirim konten sesuai kategori
     if category=="MENFESS" and update.message.text:
         msg = await context.bot.send_message(chat_id=target_ch,text=caption_channel,parse_mode="HTML",reply_markup=kb)
     elif category=="DONASI":
@@ -185,11 +179,9 @@ async def handle_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Format konten tidak sesuai untuk kategori {category}.")
         return
 
-    # Update keyboard dengan message_id sebenarnya
     kb = rating_keyboard(msg.message_id)
     await context.bot.edit_message_reply_markup(chat_id=target_ch,message_id=msg.message_id,reply_markup=kb)
 
-    # Kirim info ke GC NABRUTT (informasi saja)
     link = f"https://t.me/c/{str(target_ch)[4:]}/{msg.message_id}"
     keyboard_info = InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=link)]])
     info_text = f"📢 {category} 18+\n👤 Gender: {gender}\n👉 Klik tombol untuk lihat full di channel"
@@ -202,12 +194,11 @@ async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     rating = int(query.data.split("|")[1])
     message_id = str(query.data.split("|")[0])
-    stage_name = "Anon"  # voters tetap anonim
+    stage_name = "Anon"
 
     save_rating(message_id,user_id,stage_name,rating)
     avg = get_average_rating(message_id)
 
-    # Update caption di channel
     try:
         message = query.message
         caption_lines = message.caption.split("\n")
@@ -253,15 +244,25 @@ async def inline_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"{i}. {name} - 🌟 {score} (votes: Voter1, Voter2,...)\n"
         await query.message.edit_text(text)
 
-def main():
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_content))
-    app.add_handler(CallbackQueryHandler(handle_rating, pattern=r"\d+\|\d+"))
-    app.add_handler(CallbackQueryHandler(inline_callback))
+async def run_bot():
+    application = Application.builder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_content))
+    application.add_handler(CallbackQueryHandler(handle_rating, pattern=r"\d+\|\d+"))
+    application.add_handler(CallbackQueryHandler(inline_callback))
+
+    scheduler.add_job(reset_top_daily,'cron',hour=0,minute=0)
+    scheduler.start()
+
     print("Bot jalan...")
-    app.run_polling()
+    await application.run_polling()
+
+def run_flask():
+    app_flask.run(host="0.0.0.0", port=PORT)
 
 if __name__ == "__main__":
-    threading.Thread(target=main, daemon=True).start()
-    app_flask.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    # Jalankan Flask di thread terpisah
+    threading.Thread(target=run_flask, daemon=True).start()
+
+    # Jalankan bot async mainloop
+    asyncio.run(run_bot())
