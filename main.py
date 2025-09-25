@@ -7,7 +7,11 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import os
 from flask import Flask
 
+app_flask = Flask(__name__)
+
 @app_flask.route("/")
+
+
 def home():
     return "Bot jalan di Render!"
     
@@ -262,4 +266,6 @@ app_flask.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
 
 
 if __name__=="__main__":
+     app_flask.run(host="0.0.0.0", port=8080)
+    
     main()
