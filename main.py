@@ -1,181 +1,213 @@
+import json
 import os
-from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+import random
+from telegram import (
+    Update, InlineKeyboardMarkup, InlineKeyboardButton, InputFile
+)
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
+)
 
-load_dotenv()
+# === KONFIGURASI ===
+TOKEN = "8466148433:AAH0yuuC3zetTYRysTkxmfCnc9JTqdwcXpI"
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-GROUP_ID = int(os.getenv("GROUP_ID"))
-ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS").split(",")))
+GC_NABRUTT = -1003098333444
+DISCUSSION_GROUP = -1003033445498
 
-TOPICS = {
-    "Moan Cwo": 392,
-    "Moan Cwe": 391,
-    "Menfess": 393,
-    "Pap Cwo": 812,
-    "Pap Lacur": 816,
-    "Fwb chatt and dating": 806,
+CHANNEL_MAP = {
+    "MENFESS": -1003033445498,
+    "DONASI": -1003189592682,
+    "MOAN": -1003196180758
 }
 
-HASHTAGS = {
-    "menfess": "#menfess",
-    "curhat": "#curhat",
-    "cerita18+": "#cerita18+",
-    "keluhkesah": "#keluhkesah",
+THREAD_MAP = {
+    "MENFESS": 1036,
+    "DONASI": 393,
+    "MOAN": 1038
 }
 
-EMOJI_LIST = ["🔥", "💦", "😍"]
-user_state = {}
-reaction_data = {}
+# Cover default
+COVER_CEWE = "https://telegra.ph/file/7a2d41a6ddf9-cover-cewe.jpg"
+COVER_COWO = "https://telegra.ph/file/9bb77a6d9d0b-cover-cowo.jpg"
 
-# ================== PILIH GENDER ==================
-async def ask_gender(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.chat.type != "private":
-        return
-    keyboard = [
-        [InlineKeyboardButton("Cewek 👩‍🦰", callback_data="gender_cwe")],
-        [InlineKeyboardButton("Cowok 👦", callback_data="gender_cwo")],
-    ]
-    await update.message.reply_text(
-        "Pilih gender kamu untuk pesan anonim:", reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+# File counter & ratings
+COUNTER_FILE = "counter.json"
+RATINGS_FILE = "ratings.json"
 
-async def gender_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    gender = query.data.replace("gender_", "")
-    if user_id not in user_state:
-        user_state[user_id] = {}
-    user_state[user_id]["gender"] = gender
-    await query.message.reply_text(
-        "✅ Gender tersimpan. Sekarang ketik /start untuk pilih topik."
-    )
+def load_counter():
+    if os.path.exists(COUNTER_FILE):
+        with open(COUNTER_FILE, "r") as f:
+            return json.load(f)
+    return {"views": 10, "comments": 5}
 
-# ================== START & PILIH TOPIK ==================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.chat.type != "private":
-        return
-    user_id = update.message.from_user.id
-    if user_id not in user_state or "gender" not in user_state[user_id]:
-        await ask_gender(update, context)
-        return
-    keyboard = [[InlineKeyboardButton(name, callback_data=f"topic_{name}")] for name in TOPICS.keys()]
-    await update.message.reply_text(
-        "📌 Pilih topik yang ingin kamu kirim:", reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+def save_counter(data):
+    with open(COUNTER_FILE, "w") as f:
+        json.dump(data, f)
 
-async def topic_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    topic = query.data.replace("topic_", "")
-    if user_id not in user_state:
-        user_state[user_id] = {}
-    user_state[user_id]["topic"] = topic
-    if topic == "Menfess":
-        keyboard = [
-            [InlineKeyboardButton(f"{tag} {desc}", callback_data=f"hashtag_{tag}")]
-            for tag, desc in {
-                "menfess": "fess umum",
-                "curhat": "isi hati / 18+",
-                "cerita18+": "pengalaman 18+",
-                "keluhkesah": "tempat mengeluh",
-            }.items()
-        ]
-        await query.message.reply_text(
-            "Pilih hashtag untuk pesan Menfess-mu:", reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+def load_ratings():
+    if os.path.exists(RATINGS_FILE):
+        with open(RATINGS_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_ratings(data):
+    with open(RATINGS_FILE, "w") as f:
+        json.dump(data, f)
+
+# === Bantu buat Inline Keyboard Rating 1-10 ===
+def rating_keyboard(message_id):
+    buttons = [[InlineKeyboardButton(str(i), callback_data=f"{message_id}|{i}") for i in range(1, 6)],
+               [InlineKeyboardButton(str(i), callback_data=f"{message_id}|{i}") for i in range(6, 11)]]
+    return InlineKeyboardMarkup(buttons)
+
+# === Handle Konten User ===
+async def handle_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    caption_user = update.message.caption or update.message.text or "Tanpa keterangan"
+
+    # Gender + emoji
+    is_media = bool(update.message.photo or update.message.video)
+    is_audio = bool(update.message.voice or update.message.audio)
+    is_text = bool(update.message.text and not update.message.caption)
+
+    gender, emoji, cover = "CEWE", "👙", COVER_CEWE
+    if "COWO" in caption_user.upper():
+        if is_media:
+            gender, emoji, cover = "COWO", "🩲", COVER_COWO
+        elif is_audio or is_text:
+            gender, emoji, cover = "COWO", "🧒", COVER_COWO
     else:
-        await query.message.reply_text(
-            f"Topik '{topic}' dipilih. Sekarang kirim pesan / media sesuai topik."
-        )
+        if is_media:
+            gender, emoji, cover = "CEWE", "👙", COVER_CEWE
+        elif is_audio or is_text:
+            gender, emoji, cover = "CEWE", "🧕", COVER_CEWE
 
-async def hashtag_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    tag = query.data.replace("hashtag_", "")
-    if user_id in user_state:
-        user_state[user_id]["hashtag"] = tag
-    await query.message.reply_text(
-        f"Hashtag {HASHTAGS.get(tag, '')} dipilih. Silakan kirim pesan Menfess-mu sekarang."
+    # Counter dinamis
+    counter = load_counter()
+    views = counter["views"] + random.randint(2, 8)
+    comments = counter["comments"] + random.randint(0, 3)
+    counter["views"], counter["comments"] = views, comments
+    save_counter(counter)
+
+    # Tentukan kategori
+    category = None
+    for key in CHANNEL_MAP.keys():
+        if key in caption_user.upper():
+            category = key
+            break
+    if not category:
+        await update.message.reply_text("❌ Tidak ada kategori cocok (MENFESS / DONASI / MOAN).")
+        return
+
+    target_ch = CHANNEL_MAP[category]
+    thread_id = THREAD_MAP[category]
+
+    caption_channel = (
+        f"📌 <b>𝗚𝗘𝗡𝗗𝗘𝗥:</b> {gender}\n"
+        f"{emoji} {caption_user}\n\n"
+        f"✨ 𝗜𝗡𝗦𝗧𝗥𝗨𝗞𝗦𝗜 ✨\n"
+        f"👉 Tekan tombol rating di bawah\n"
+        f"👉 Komentar? Join diskusi (link di bawah)\n\n"
+        f"#{gender}\n\n"
+        f"👁️ {views}   💬 {comments}   🤖 Bot\n\n"
+        f"🌟 RATING TERKINI: -\n"
+        f"💬 Diskusi: https://t.me/c/1003033445498"
     )
 
-# ================== HANDLE PESAN ==================
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.chat.type != "private":
-        return
-    user_id = update.message.from_user.id
-    if user_id not in user_state or "topic" not in user_state[user_id] or "gender" not in user_state[user_id]:
-        await update.message.reply_text("Ketik /start untuk mulai dan pilih gender.")
-        return
-    topic = user_state[user_id]["topic"]
-    thread_id = TOPICS.get(topic)
-    gender = user_state[user_id]["gender"]
-    gender_text = "🕵️ Pesan anonim\n\n"
-    if gender == "cwe":
-        gender_text = "🕵️ Pesan anonim dari: 👩‍🦰\nCewek\n\n"
-    elif gender == "cwo":
-        gender_text = "🕵️ Pesan anonim dari: 👦\nCowok\n\n"
-    sent_msg = None
-    # MENFESS TEKS
-    if topic == "Menfess":
-        text = update.message.text or ""
-        if not text:
-            await update.message.reply_text("Kirim pesan teks untuk Menfess.")
-            return
-        hashtag = HASHTAGS.get(user_state[user_id].get("hashtag"), "#menfess")
-        full_text = f"{gender_text}{text}\n\n{hashtag}"
-        sent_msg = await context.bot.send_message(chat_id=GROUP_ID, text=full_text, message_thread_id=thread_id)
-    # FOTO / VIDEO
-    elif topic in ["Pap Cwo", "Pap Lacur"]:
+    msg = None
+    kb = rating_keyboard("tmp")  # placeholder, nanti diganti message_id
+
+    if category == "MENFESS" and update.message.text:
+        msg = await context.bot.send_message(chat_id=target_ch, text=caption_channel,
+                                             parse_mode="HTML", reply_markup=kb)
+
+elif category == "DONASI":
         if update.message.photo:
-            photo_file_id = update.message.photo[-1].file_id
-            sent_msg = await context.bot.send_photo(chat_id=GROUP_ID, photo=photo_file_id,
-                caption=gender_text + (update.message.caption or ""), message_thread_id=thread_id)
+            msg = await context.bot.send_photo(chat_id=target_ch, photo=update.message.photo[-1].file_id,
+                                               caption=caption_channel, parse_mode="HTML",
+                                               has_spoiler=True, reply_markup=kb)
         elif update.message.video:
-            video_file_id = update.message.video.file_id
-            sent_msg = await context.bot.send_video(chat_id=GROUP_ID, video=video_file_id,
-                caption=gender_text + (update.message.caption or ""), message_thread_id=thread_id)
-        else:
-            await update.message.reply_text("Topik ini hanya menerima foto atau video.")
-            return
-    # VOICE / AUDIO
-    elif topic in ["Moan Cwo", "Moan Cwe"]:
-        if not (update.message.voice or update.message.audio):
-            await update.message.reply_text("Topik ini hanya menerima voice/audio.")
-            return
+            msg = await context.bot.send_video(chat_id=target_ch, video=update.message.video.file_id,
+                                               caption=caption_channel, parse_mode="HTML",
+                                               has_spoiler=True, reply_markup=kb)
+    elif category == "MOAN":
         if update.message.voice:
-            sent_msg = await context.bot.send_voice(chat_id=GROUP_ID, voice=update.message.voice.file_id,
-                caption=gender_text + (update.message.caption or ""), message_thread_id=thread_id)
+            msg = await context.bot.send_voice(chat_id=target_ch, voice=update.message.voice.file_id,
+                                               caption=caption_channel, parse_mode="HTML",
+                                               reply_markup=kb)
         elif update.message.audio:
-            sent_msg = await context.bot.send_audio(chat_id=GROUP_ID, audio=update.message.audio.file_id,
-                caption=gender_text + (update.message.caption or ""), message_thread_id=thread_id)
-    else:
-        await update.message.reply_text("Topik tidak dikenal.")
-        return
-    # NOTIF ADMIN
-    for admin_id in ADMIN_IDS:
-        try:
-            await context.bot.send_message(chat_id=admin_id, text=f"[{topic}] Pesan baru diterima dari user {user_id}.")
-        except:
-            continue
-    await update.message.reply_text(f"Pesan berhasil dikirim ke topik '{topic}'.")
-    if sent_msg:
-        user_state[user_id]["last_message_id"] = sent_msg.message_id
+            msg = await context.bot.send_audio(chat_id=target_ch, audio=update.message.audio.file_id,
+                                               caption=caption_channel, parse_mode="HTML",
+                                               reply_markup=kb)
 
-# ================== MAIN ==================
+    if not msg:
+        await update.message.reply_text(f"❌ Format konten tidak sesuai untuk kategori {category}.")
+        return
+
+    # Update keyboard dengan message_id yang benar
+    kb = rating_keyboard(msg.message_id)
+    await context.bot.edit_message_reply_markup(chat_id=target_ch, message_id=msg.message_id, reply_markup=kb)
+
+    # Kirim info ke GC NABRUTT
+    link = f"https://t.me/c/{str(target_ch)[4:]}/{msg.message_id}"
+    keyboard_info = InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=link)]])
+    info_text = f"📢 <b>{category} 18+</b>\n👤 Gender: {gender}\n👉 Klik tombol untuk lihat full di channel"
+    await context.bot.send_message(chat_id=GC_NABRUTT, text=info_text, parse_mode="HTML",
+                                   message_thread_id=thread_id, reply_markup=keyboard_info)
+
+# === Handle Rating Callback ===
+async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = query.from_user.id
+    data = query.data
+    message_id_str, rating_str = data.split("|")
+    rating = int(rating_str)
+    message_id = str(message_id_str)
+
+    ratings = load_ratings()
+    if message_id not in ratings:
+        ratings[message_id] = {}
+    ratings[message_id][str(user_id)] = rating
+    save_ratings(ratings)
+
+    # Hitung rating rata-rata
+    scores = list(ratings[message_id].values())
+    avg = round(sum(scores) / len(scores), 1)
+
+    # Edit caption di message
+    try:
+        message = query.message
+        caption_lines = message.caption.split("\n")
+        for i, line in enumerate(caption_lines):
+            if line.startswith("🌟 RATING TERKINI:"):
+                caption_lines[i] = f"🌟 RATING TERKINI: {avg}"
+        new_caption = "\n".join(caption_lines)
+        await context.bot.edit_message_caption(chat_id=message.chat_id, message_id=message.message_id,
+                                               caption=new_caption, parse_mode="HTML",
+                                               reply_markup=message.reply_markup)
+        await query.answer(f"✅ Rating {rating} diterima!")
+    except Exception as e:
+        await query.answer("⚠️ Terjadi kesalahan.")
+
+# === Command Start ===
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Kirim konten sesuai kategori:\n"
+        "- MENFESS (teks only)\n"
+        "- DONASI (foto/video)\n"
+        "- MOAN (vn/audio)\n\n"
+        "Gunakan caption yang menyertakan kategori (MENFESS/DONASI/MOAN)."
+    )
+
+# === Main App ===
 def main():
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(gender_choice, pattern="^gender_"))
-    app.add_handler(CallbackQueryHandler(topic_choice, pattern="^topic_"))
-    app.add_handler(CallbackQueryHandler(hashtag_choice, pattern="^hashtag_"))
-    app.add_handler(MessageHandler(filters.ALL & filters.ChatType.PRIVATE, handle_message))
-    print("Bot berjalan...")
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_content))
+    app.add_handler(CallbackQueryHandler(handle_rating))
+
+
+print("Bot jalan...")
     app.run_polling()
 
-if __name__ == "__main__":
+if name == "main":
     main()
