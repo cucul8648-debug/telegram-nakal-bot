@@ -8,7 +8,7 @@ import os
 from flask import Flask
 
 @app_flask.route("/")
-def home()
+def home():
     return "Bot jalan di Render!"
     
 # ===== KONFIGURASI =====
