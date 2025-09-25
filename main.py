@@ -6,12 +6,11 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import os
 from flask import Flask
+import threading   # ← pastikan sudah ada
 
 app_flask = Flask(__name__)
 
 @app_flask.route("/")
-
-
 def home():
     return "Bot jalan di Render!"
     
@@ -249,7 +248,6 @@ async def inline_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"{i}. {name} - 🌟 {score} (votes: Voter1, Voter2,...)\n"
         await query.message.edit_text(text)
 
-# ===== MAIN =====
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
@@ -258,14 +256,11 @@ def main():
     app.add_handler(CallbackQueryHandler(inline_callback))
     print("Bot jalan...")
 
-import threading
-t = threading.Thread(target=app.run_polling, daemon=True)
-t.start()
+    # jalankan polling di thread terpisah
+    threading.Thread(target=app.run_polling, daemon=True).start()
 
-app_flask.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
-
-
-if __name__=="__main__":
-     app_flask.run(host="0.0.0.0", port=8080)
-    
+if __name__ == "__main__":
+    # jalankan Flask
+    app_flask.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    # panggil main() TANPA indentasi berlebih
     main()
