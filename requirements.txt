@@ -1,11 +1,5 @@
-# Web server
 flask==3.0.3
-
-# Telegram bot
+gunicorn==23.0.0
 python-telegram-bot==20.3
-
-# Scheduler
 apscheduler==3.11.0
-
-# (opsional) jika ingin HTTP client modern
 httpx==0.24.1
