@@ -119,7 +119,6 @@ async def handle_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if category == "MENFESS" and update.message.text:
         msg = await context.bot.send_message(chat_id=target_ch, text=caption_channel,
                                              parse_mode="HTML", reply_markup=kb)
-
 elif category == "DONASI":
         if update.message.photo:
             msg = await context.bot.send_photo(chat_id=target_ch, photo=update.message.photo[-1].file_id,
@@ -138,7 +137,6 @@ elif category == "DONASI":
             msg = await context.bot.send_audio(chat_id=target_ch, audio=update.message.audio.file_id,
                                                caption=caption_channel, parse_mode="HTML",
                                                reply_markup=kb)
-
     if not msg:
         await update.message.reply_text(f"❌ Format konten tidak sesuai untuk kategori {category}.")
         return
