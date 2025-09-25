@@ -4,7 +4,13 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import os
+from flask import Flask
 
+@app_flask.route("/")
+def home()
+    return "Bot jalan di Render!"
+    
 # ===== KONFIGURASI =====
 TOKEN = "8466148433:AAH0yuuC3zetTYRysTkxmfCnc9JTqdwcXpI"
 
@@ -247,7 +253,13 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_rating, pattern=r"\d+\|\d+"))
     app.add_handler(CallbackQueryHandler(inline_callback))
     print("Bot jalan...")
-    app.run_polling()
+
+import threading
+t = threading.Thread(target=app.run_polling, daemon=True)
+t.start()
+
+app_flask.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+
 
 if __name__=="__main__":
     main()
