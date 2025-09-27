@@ -205,7 +205,16 @@ async def handle_vote(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer("✅ Pilihan kamu tersimpan!")
 
 # ---------- HANDLE MESSAGE ----------
-# (isi sama persis dengan versi awal, tidak diubah)
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    if uid not in user_data or "jenis" not in user_data[uid]:
+        return
+    jenis = user_data[uid]["jenis"]
+    gender_text = format_gender(user_data[uid].get("gender",""))
+
+    caption = update.message.caption or update.message.text or ""
+    ...
+    # seluruh isi fungsi dari kode asli kamu di sini
 
 # ---------- MAIN ----------
 def main():
