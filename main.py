@@ -8,7 +8,7 @@ from telegram.ext import (
 )
 
 # ================== KONFIG ==================
-TOKEN = "8466148433:AAF9iG2B3Fcs2b_nq9r6Po-_AUz7MRojqjw"
+TOKEN = "8466148433:AAF7T516JC7KvYFNFlmJBpJdgfgpj7JnBsg"
 
 # GROUP + THREAD
 GROUP_NABRUTT = -1003098333444
