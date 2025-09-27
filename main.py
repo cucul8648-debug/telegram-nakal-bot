@@ -8,33 +8,29 @@ from telegram.ext import (
 )
 
 # ================== KONFIG ==================
-TOKEN = "8466148433:AAEptPwAEC8a5CI_OezPxgQLaRb7MW41YbU"   # ⚠️ JANGAN simpan token asli di file publik!
+TOKEN = "8167264410:AAHYQgPVe_HyqIQLxZ6yuGFABWCw5Bb-P74"
 
 # GROUP + THREAD
-GROUP_NABRUTT = -1003098333444
+GROUP_NABRUTT  = -1003098333444
 THREAD_MENFESS = 1036
-THREAD_PAP = 393
-THREAD_MOAN = 1038
+THREAD_PAP     = 393
+THREAD_MOAN    = 1038
 
 # CHANNEL
 CHANNEL_MENFESS_ID = -1002989043936
-CHANNEL_PAP_ID = -1003189592682
-CHANNEL_MOAN_ID = -1003196180758
-
-# GROUP DISKUSI
-GROUP_DISKUSI = -1003033445498
+CHANNEL_PAP_ID     = -1003189592682
+CHANNEL_MOAN_ID    = -1003196180758
 
 # URL Join / Redirect
-URL_NABRUTT = "https://t.me/+a3Bd3FDl5HY2NjFl"
 URL_MENFESS = "https://t.me/MenfessNABRUTT"
-URL_PAP = "https://t.me/PAPCABULNABRUTT"
-URL_MOAN = "https://t.me/MOAN18NABRUTT"
+URL_PAP     = "https://t.me/PAPCABULNABRUTT"
+URL_MOAN    = "https://t.me/MOAN18NABRUTT"
+URL_NABRUTT = "https://t.me/+a3Bd3FDl5HY2NjFl"
 URL_DISKUSI = "https://t.me/+dD-sAhjjsJgxZGVl"
 
 # SIMPAN DATA USER
 user_data = {}
-emoji_counter = {}
-vote_tracker = {}
+emoji_counter = {}  # hitung interaksi per post
 
 # ================= LOGGING =================
 logging.basicConfig(
@@ -47,29 +43,16 @@ logger = logging.getLogger(__name__)
 def format_gender(gender: str) -> str:
     return "COWO 🤵‍♂️" if gender.lower() == "cowo" else "CEWE 👩‍🦰"
 
-def emoji_keyboard(key: str):
-    counts = emoji_counter.get(key, {"👍": 0, "💖": 0, "💦": 0})
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(f"👍 {counts['👍']}", callback_data=f"vote|{key}|like"),
-            InlineKeyboardButton(f"💖 {counts['💖']}", callback_data=f"vote|{key}|love"),
-            InlineKeyboardButton(f"💦 {counts['💦']}", callback_data=f"vote|{key}|splash")
-        ],
-        [
-            InlineKeyboardButton("1", callback_data=f"vote|{key}|1"),
-            InlineKeyboardButton("2", callback_data=f"vote|{key}|2"),
-            InlineKeyboardButton("3", callback_data=f"vote|{key}|3"),
-            InlineKeyboardButton("4", callback_data=f"vote|{key}|4"),
-            InlineKeyboardButton("5", callback_data=f"vote|{key}|5")
-        ],
-        [
-            InlineKeyboardButton("6", callback_data=f"vote|{key}|6"),
-            InlineKeyboardButton("7", callback_data=f"vote|{key}|7"),
-            InlineKeyboardButton("8", callback_data=f"vote|{key}|8"),
-            InlineKeyboardButton("9", callback_data=f"vote|{key}|9"),
-            InlineKeyboardButton("10", callback_data=f"vote|{key}|10")
-        ]
-    ])
+def emoji_keyboard():
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("👍", callback_data="like"),
+        InlineKeyboardButton("💌", callback_data="love"),
+        InlineKeyboardButton("💦", callback_data="splash")
+    ],
+    [   # tombol link GC/Channel
+        InlineKeyboardButton("💬 Komentar", url=URL_DISKUSI),
+        InlineKeyboardButton("👥 GC Nabrutt", url=URL_NABRUTT)
+    ]])
 
 async def is_member(bot, chat_id, user_id):
     try:
@@ -79,13 +62,11 @@ async def is_member(bot, chat_id, user_id):
         return False
 
 async def check_all_membership(bot, uid):
-    join_nabrutt = await is_member(bot, GROUP_NABRUTT, uid)
-    join_diskusi = await is_member(bot, GROUP_DISKUSI, uid)
-    join_menfess = await is_member(bot, CHANNEL_MENFESS_ID, uid)
-    join_pap     = await is_member(bot, CHANNEL_PAP_ID, uid)
-    join_moan    = await is_member(bot, CHANNEL_MOAN_ID, uid)
-    # pastikan group utama juga ikut dicek
-    return join_nabrutt and join_diskusi and join_menfess and join_pap and join_moan
+    join_diskusi = await is_member(bot, -1003033445498, uid)
+    join_menfess = await is_member(bot, -1002989043936, uid)
+    join_pap     = await is_member(bot, -1003189592682, uid)
+    join_moan    = await is_member(bot, -1003196180758, uid)
+    return join_diskusi and join_menfess and join_pap and join_moan
 
 # ---------- START ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -94,7 +75,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("👩‍🦰 Cewek", callback_data="gender_cewe")]
     ]
     await update.message.reply_text(
-        "Selamat datang di EksibNih 🤖\n\nPilih jenis kelamin mu dulu ya:",
+        "Selamat datang di EksibNih 🤖\n\nPilih jenis kelaminmu dulu ya:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -104,6 +85,7 @@ async def pilih_gender(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     gender = query.data.replace("gender_", "")
     user_data[query.from_user.id] = {"gender": gender}
+
     uid = query.from_user.id
     sudah_join = await check_all_membership(context.bot, uid)
     if not sudah_join:
@@ -120,7 +102,7 @@ async def pilih_gender(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
-        await tampilkan_menu(update, context)
+        await tampilkan_menu(query)
 
 # ---------- CEK JOIN ----------
 async def cek_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -129,106 +111,102 @@ async def cek_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = query.from_user.id
     sudah_join = await check_all_membership(context.bot, uid)
     if sudah_join:
-        await tampilkan_menu(update, context)
+        await tampilkan_menu(query)
     else:
         await query.edit_message_text("❌ Kamu belum join semua group/channel.\n\nSilakan join dulu baru lanjut.")
 
 # ---------- MENU ----------
-async def tampilkan_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+async def tampilkan_menu(query):
     keyboard = [
         [InlineKeyboardButton("💌 Menfess 18+", callback_data="jenis_menfess")],
-        [InlineKeyboardButton("📸 Pap Cabul", callback_data="jenis_pap")],
-        [InlineKeyboardButton("🎙 Moan 18+", callback_data="jenis_moan")]
+        [InlineKeyboardButton("📸 Pap Cabul",   callback_data="jenis_pap")],
+        [InlineKeyboardButton("🎙 Moan 18+",    callback_data="jenis_moan")]
     ]
     await query.edit_message_text(
         "✅ Semua step sudah selesai!\n\nPilih jenis postingan:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ---------- PILIH JENIS (BARU) ----------
+# ---------- PILIH JENIS ----------
 async def pilih_jenis(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    uid = query.from_user.id
     jenis = query.data.replace("jenis_", "")
+    uid = query.from_user.id
     user_data.setdefault(uid, {})["jenis"] = jenis
 
-    if jenis == "pap":
+    if jenis == "menfess":
+        await query.edit_message_text("💌 Kamu memilih *MENFESS*.\n\nKirim teks menfess sekarang!", parse_mode="Markdown")
+    elif jenis == "pap":
         keyboard = [
-            [InlineKeyboardButton("📷 Foto", callback_data="pap_foto")],
+            [InlineKeyboardButton("📸 Foto",  callback_data="pap_foto")],
             [InlineKeyboardButton("🎥 Video", callback_data="pap_video")]
         ]
-        await query.edit_message_text("Kirim PAP dalam bentuk apa?",
-                                      reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.edit_message_text("📸 Kamu memilih *PAP*.\n\nPilih tipe:", reply_markup=InlineKeyboardMarkup(keyboard))
     else:
-        await query.edit_message_text(f"Silakan kirim konten untuk {jenis.upper()} sekarang.")
+        await query.edit_message_text("🎙 Kamu memilih *MOAN*.\n\nKirim voice note + caption (opsional).", parse_mode="Markdown")
 
-# ---------- PILIH PAP TYPE (BARU) ----------
+# ---------- PILIH PAP TIPE ----------
 async def pilih_pap_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    uid = query.from_user.id
-    tipe = "foto" if query.data == "pap_foto" else "video"
-    user_data.setdefault(uid, {})["pap_type"] = tipe
-    await query.edit_message_text("Silakan kirim foto/video sekarang.")
+    tipe = query.data.replace("pap_", "")
+    user_data[query.from_user.id]["pap_type"] = tipe
+    await query.edit_message_text(f"✅ Kamu memilih PAP tipe *{tipe.upper()}*.\n\nKirim {tipe} sekarang!", parse_mode="Markdown")
 
-# ---------- HANDLE VOTE ----------
-async def handle_vote(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ---------- HANDLE EMOJI ----------
+async def handle_emoji(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    uid = query.from_user.id
-    _, key, action = query.data.split("|")
+    await query.answer()
+    data = query.data
+    mid  = query.message.message_id
+    if mid not in emoji_counter:
+        emoji_counter[mid] = {"👍":0, "💌":0, "💦":0}
+    if data == "like":   emoji_counter[mid]["👍"] += 1
+    if data == "love":   emoji_counter[mid]["💌"] += 1
+    if data == "splash": emoji_counter[mid]["💦"] += 1
+    c = emoji_counter[mid]
+    await query.message.edit_reply_markup(InlineKeyboardMarkup([[
+        InlineKeyboardButton(f"👍 {c['👍']}", callback_data="like"),
+        InlineKeyboardButton(f"💌 {c['💌']}", callback_data="love"),
+        InlineKeyboardButton(f"💦 {c['💦']}", callback_data="splash")
+    ],
+    [
+        InlineKeyboardButton("💬 Komentar", url=URL_DISKUSI),
+        InlineKeyboardButton("👥 GC Nabrutt", url=URL_NABRUTT)
+    ]]))
 
-    if key not in vote_tracker:
-        vote_tracker[key] = {"emoji": {}, "nilai": {}}
-
-    if action in ["like", "love", "splash"]:
-        if uid in vote_tracker[key]["emoji"]:
-            await query.answer("⚠️ Kamu sudah pilih emoji!", show_alert=True)
-            return
-        vote_tracker[key]["emoji"][uid] = action
-        if key not in emoji_counter:
-            emoji_counter[key] = {"👍":0, "💖":0, "💦":0}
-        if action == "like": emoji_counter[key]["👍"] += 1
-        elif action == "love": emoji_counter[key]["💖"] += 1
-        elif action == "splash": emoji_counter[key]["💦"] += 1
-
-    elif action.isdigit():
-        if uid in vote_tracker[key]["nilai"]:
-            await query.answer("⚠️ Kamu sudah kasih nilai!", show_alert=True)
-            return
-        vote_tracker[key]["nilai"][uid] = int(action)
-
-    counts = emoji_counter.get(key, {"👍":0, "💖":0, "💦":0})
-    await query.message.edit_reply_markup(reply_markup=emoji_keyboard(key))
-    await query.answer("✅ Pilihan kamu tersimpan!")
-
-    # ---------- HANDLE MESSAGE ----------
+# ---------- HANDLE MESSAGE ----------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if uid not in user_data or "jenis" not in user_data[uid]:
         return
-    jenis = user_data[uid]["jenis"]
-    gender_text = format_gender(user_data[uid].get("gender",""))
 
+    jenis   = user_data[uid]["jenis"]
+    gender  = format_gender(user_data[uid].get("gender", ""))
     caption = update.message.caption or ""
-    text = update.message.text or ""
+    text    = update.message.text or ""
+
+    # Thread GC selalu teks
+    def send_thread(text_thread, url):
+        return context.bot.send_message(
+            chat_id=GROUP_NABRUTT,
+            message_thread_id={
+                "menfess": THREAD_MENFESS,
+                "pap":     THREAD_PAP,
+                "moan":    THREAD_MOAN
+            }[jenis],
+            text=f"{text_thread}\n\n🕵️ Gender: {gender}\n\n{caption or text}\n\n👉 Klik tombol untuk lihat full di channel",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=url)]])
+        )
 
     # ----- MENFESS -----
     if jenis == "menfess":
-        # thread GC hanya text + link
-        await context.bot.send_message(
-            chat_id=GROUP_NABRUTT,
-            message_thread_id=THREAD_MENFESS,
-            text=f"MENFESS 💌18+\n\n🕵️ Gender: {gender_text}\n\n{text}\n\n👉 Klik tombol untuk lihat full di channel",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_MENFESS)]])
-        )
-        # channel full text + emoji interaktif
+        await send_thread("MENFESS 💌18+", URL_MENFESS)
         if text:
             await context.bot.send_message(
                 chat_id=CHANNEL_MENFESS_ID,
-                text=f"MENFESS 💌18+\n\n🕵️ Gender: {gender_text}\n\n{text}",
+                text=f"MENFESS 💌18+\n\n🕵️ Gender: {gender}\n\n{caption or text}\n\n👉 Klik tombol untuk lihat full di gc diskusi",
                 reply_markup=emoji_keyboard()
             )
 
@@ -238,40 +216,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Pilih tipe PAP dulu (Foto/Video).")
             return
         tipe = user_data[uid]["pap_type"]
-        file_id = None
         title = "PAPBRUTT 📸" if tipe == "foto" else "VIDEOBRUTT 🎥"
+        await send_thread(title, URL_PAP)
 
         if tipe == "foto" and update.message.photo:
-            file_id = update.message.photo[-1].file_id
-            # thread GC
+            fid = update.message.photo[-1].file_id
             await context.bot.send_photo(
-                chat_id=GROUP_NABRUTT,
-                message_thread_id=THREAD_PAP,
-                photo=file_id,
-                caption=f"{title}\n\n🕵️ Gender: {gender_text}\n\n{caption}\n\n👉 Klik tombol untuk lihat full di channel",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_PAP)]])
-            )
-            # channel full
-            await context.bot.send_photo(
-                chat_id=CHANNEL_PAP_ID,
-                photo=file_id,
-                caption=f"{title}\n👤 Gender: {gender_text}\n\n{caption}",
+                CHANNEL_PAP_ID, photo=fid,
+                caption=f"{title}\n\n🕵️ Gender: {gender}\n\n{caption or text}\n\n👉 Klik tombol untuk lihat full di gc diskusi",
                 has_spoiler=True,
                 reply_markup=emoji_keyboard()
             )
         elif tipe == "video" and update.message.video:
-            file_id = update.message.video.file_id
+            fid = update.message.video.file_id
             await context.bot.send_video(
-                chat_id=GROUP_NABRUTT,
-                message_thread_id=THREAD_PAP,
-                video=file_id,
-                caption=f"{title}\n\n🕵️ Gender: {gender_text}\n\n{caption}\n\n👉 Klik tombol untuk lihat full di channel",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_PAP)]])
-            )
-            await context.bot.send_video(
-                chat_id=CHANNEL_PAP_ID,
-                video=file_id,
-                caption=f"{title}\n👤 Gender: {gender_text}\n\n{caption}",
+                CHANNEL_PAP_ID, video=fid,
+                caption=f"{title}\n\n🕵️ Gender: {gender}\n\n{caption or text}\n\n👉 Klik tombol untuk lihat full di gc diskusi",
                 has_spoiler=True,
                 reply_markup=emoji_keyboard()
             )
@@ -283,46 +243,39 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ----- MOAN -----
     elif jenis == "moan":
         if update.message.voice:
-            file_id = update.message.voice.file_id
-            # thread GC hanya text + link
-            await context.bot.send_message(
-                chat_id=GROUP_NABRUTT,
-                message_thread_id=THREAD_MOAN,
-                text=f"MOANBRUTT 🎧\n\n🕵️ Gender: {gender_text}\n\n{caption}\n\n👉 Klik tombol untuk lihat full di channel",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_MOAN)]])
-            )
-            # channel full audio + emoji interaktif
+            await send_thread("MOANBRUTT 🎧", URL_MOAN)
+            fid = update.message.voice.file_id
             await context.bot.send_voice(
-                chat_id=CHANNEL_MOAN_ID,
-                voice=file_id,
-                caption=f"MOANBRUTT 🎧\n👤 Gender: {gender_text}\n\n{caption}",
+                CHANNEL_MOAN_ID,
+                voice=fid,
+                caption=f"MOANBRUTT 🎧\n\n🕵️ Gender: {gender}\n\n{caption or text}\n\n👉 Klik tombol untuk lihat full di gc diskusi",
                 has_spoiler=True,
                 reply_markup=emoji_keyboard()
             )
         else:
             await update.message.reply_text("⚠️ Kirim voice note ya!")
 
-    # Reset & tampil menu lagi
-    keyboard = [
+    # Reset & tampil menu awal
+    user_data[uid].pop("jenis", None)
+    menu_awal = InlineKeyboardMarkup([
         [InlineKeyboardButton("💌 Menfess 18+", callback_data="jenis_menfess")],
-        [InlineKeyboardButton("📸 Pap Cabul", callback_data="jenis_pap")],
-        [InlineKeyboardButton("🎙 Moan 18+", callback_data="jenis_moan")]
-    ]
+        [InlineKeyboardButton("📸 Pap Cabul",   callback_data="jenis_pap")],
+        [InlineKeyboardButton("🎙 Moan 18+",    callback_data="jenis_moan")]
+    ])
     await update.message.reply_text(
         "✅ Postingan berhasil dikirim!\n\nMau kirim apa lagi?",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=menu_awal
     )
-    user_data[uid].pop("jenis", None)
+
 # ---------- MAIN ----------
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(pilih_gender, pattern="^gender_"))
-    app.add_handler(CallbackQueryHandler(cek_join, pattern="^cek_join$"))
-    app.add_handler(CallbackQueryHandler(tampilkan_menu, pattern="^menu$"))
+    app.add_handler(CallbackQueryHandler(cek_join,    pattern="^cek_join$"))
     app.add_handler(CallbackQueryHandler(pilih_jenis, pattern="^jenis_"))
     app.add_handler(CallbackQueryHandler(pilih_pap_type, pattern="^pap_"))
-    app.add_handler(CallbackQueryHandler(handle_vote, pattern="^vote"))
+    app.add_handler(CallbackQueryHandler(handle_emoji,   pattern="^(like|love|splash)$"))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
     print("🤖 Bot jalan...")
     app.run_polling(timeout=60)
