@@ -1,268 +1,329 @@
-import sqlite3
-import random
-from datetime import datetime
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-import os
-from flask import Flask
-import threading
-import asyncio
-
-# Flask app
-app_flask = Flask(__name__)
-
-@app_flask.route("/")
-def home():
-    return "Bot jalan di Render!"
-
-# ===== KONFIGURASI =====
-TOKEN = "8466148433:AAH0yuuC3zetTYRysTkxmfCnc9JTqdwcXpI"
-PORT = int(os.environ.get("PORT", 10000))
-
-GC_NABRUTT = -1003098333444
-DISCUSSION_GROUP = -1003033445498
-
-CHANNEL_MAP = {
-    "MENFESS": -1003033445498,
-    "DONASI": -1003189592682,
-    "MOAN": -1003196180758
-}
-
-THREAD_MAP = {
-    "MENFESS": 1036,
-    "DONASI": 393,
-    "MOAN": 1038
-}
-
-COVER_CEWE = "https://telegra.ph/file/7a2d41a6ddf9-cover-cewe.jpg"
-COVER_COWO = "https://telegra.ph/file/9bb77a6d9d0b-cover-cowo.jpg"
-
-counter = {"views": 10, "comments": 5}
-
-# ===== DATABASE SQLITE =====
-conn = sqlite3.connect("ratings.db", check_same_thread=False)
-c = conn.cursor()
-c.execute("""
-CREATE TABLE IF NOT EXISTS ratings (
-    message_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    stage_name TEXT,
-    score INTEGER NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY(message_id, user_id)
+import logging
+from telegram import (
+    Update, InlineKeyboardButton, InlineKeyboardMarkup
 )
-""")
-conn.commit()
+from telegram.ext import (
+    Application, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ContextTypes, filters
+)
 
-# ===== FUNSI DATABASE =====
-def save_rating(message_id: str, user_id: str, stage_name: str, score: int):
-    c.execute("""
-    INSERT INTO ratings (message_id, user_id, stage_name, score)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(message_id, user_id) DO UPDATE SET score=excluded.score
-    """, (message_id, str(user_id), stage_name, score))
-    conn.commit()
+# ================== KONFIG ==================
+TOKEN = "8466148433:AAF9iG2B3Fcs2b_nq9r6Po-_AUz7MRojqjw"
 
-def get_average_rating(message_id: str):
-    c.execute("SELECT score FROM ratings WHERE message_id=?", (message_id,))
-    rows = c.fetchall()
-    if not rows:
-        return 0
-    scores = [r[0] for r in rows]
-    return round(sum(scores)/len(scores),1)
+# GROUP + THREAD
+GROUP_NABRUTT = -1003098333444
+THREAD_MENFESS = 1036
+THREAD_PAP = 393
+THREAD_MOAN = 1038
 
-def get_top_alltime(limit=3):
-    c.execute("""
-        SELECT stage_name, AVG(score) as avg_score
-        FROM ratings
-        GROUP BY message_id
-        ORDER BY avg_score DESC
-        LIMIT ?
-    """, (limit,))
-    return c.fetchall()
+# CHANNEL
+CHANNEL_MENFESS_ID = -1002989043936
+CHANNEL_PAP_ID = -1003189592682
+CHANNEL_MOAN_ID = -1003196180758
 
-def get_top_today(limit=3):
-    c.execute("""
-        SELECT stage_name, AVG(score) as avg_score
-        FROM ratings
-        WHERE DATE(timestamp) = DATE('now','localtime')
-        GROUP BY message_id
-        ORDER BY avg_score DESC
-        LIMIT ?
-    """, (limit,))
-    return c.fetchall()
+# GROUP DISKUSI
+GROUP_DISKUSI = -1003033445498
 
-# ===== RATING INLINE KEYBOARD =====
-def rating_keyboard(message_id):
-    buttons = [
-        [InlineKeyboardButton(str(i), callback_data=f"{message_id}|{i}") for i in range(1,6)],
-        [InlineKeyboardButton(str(i), callback_data=f"{message_id}|{i}") for i in range(6,11)]
+# URL Join / Redirect
+URL_NABRUTT = "https://t.me/+ptW3x7hLmhZkOTZl"
+URL_MENFESS = "https://t.me/MenfessNABRUTT"
+URL_PAP = "https://t.me/PAPCABULNABRUTT"
+URL_MOAN = "https://t.me/MOAN18NABRUTT"
+URL_DISKUSI = "https://t.me/+NHZRuZGIyehhNzk1"
+
+# SIMPAN DATA USER
+user_data = {}
+emoji_counter = {}
+vote_tracker = {}
+
+# ================= LOGGING =================
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# ---------- HELPER ----------
+def format_gender(gender: str) -> str:
+    return "COWO 🤵‍♂️" if gender.lower() == "cowo" else "CEWE 👩‍🦰"
+
+def emoji_keyboard(key: str):
+    counts = emoji_counter.get(key, {"👍": 0, "💖": 0, "💦": 0})
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(f"👍 {counts['👍']}", callback_data=f"vote|{key}|like"),
+            InlineKeyboardButton(f"💖 {counts['💖']}", callback_data=f"vote|{key}|love"),
+            InlineKeyboardButton(f"💦 {counts['💦']}", callback_data=f"vote|{key}|splash")
+        ],
+        [
+            InlineKeyboardButton("1", callback_data=f"vote|{key}|1"),
+            InlineKeyboardButton("2", callback_data=f"vote|{key}|2"),
+            InlineKeyboardButton("3", callback_data=f"vote|{key}|3"),
+            InlineKeyboardButton("4", callback_data=f"vote|{key}|4"),
+            InlineKeyboardButton("5", callback_data=f"vote|{key}|5")
+        ],
+        [
+            InlineKeyboardButton("6", callback_data=f"vote|{key}|6"),
+            InlineKeyboardButton("7", callback_data=f"vote|{key}|7"),
+            InlineKeyboardButton("8", callback_data=f"vote|{key}|8"),
+            InlineKeyboardButton("9", callback_data=f"vote|{key}|9"),
+            InlineKeyboardButton("10", callback_data=f"vote|{key}|10")
+        ]
+    ])
+
+async def is_member(bot, chat_id, user_id):
+    try:
+        member = await bot.get_chat_member(chat_id, user_id)
+        return member.status in ["member", "administrator", "creator"]
+    except:
+        return False
+
+async def check_all_membership(bot, uid):
+    join_nabrutt = await is_member(bot, GROUP_NABRUTT, uid)
+    join_diskusi = await is_member(bot, GROUP_DISKUSI, uid)
+    join_menfess = await is_member(bot, CHANNEL_MENFESS_ID, uid)
+    join_pap     = await is_member(bot, CHANNEL_PAP_ID, uid)
+    join_moan    = await is_member(bot, CHANNEL_MOAN_ID, uid)
+    return join_diskusi and join_menfess and join_pap and join_moan
+
+# ---------- START ----------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("🤵‍♂ Cowok", callback_data="gender_cowo")],
+        [InlineKeyboardButton("👩‍🦰 Cewek", callback_data="gender_cewe")]
     ]
-    return InlineKeyboardMarkup(buttons)
-
-# ===== RESET TOP HARIAN =====
-scheduler = AsyncIOScheduler()
-
-def reset_top_daily():
-    print("✅ Reset top harian (data rating tetap tersimpan)")
-
-# ===== HANDLER CONTENT =====
-async def handle_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global counter
-    caption_user = update.message.caption or update.message.text or "Tanpa keterangan"
-    stage_name = caption_user.split()[0] if caption_user else "Anon"
-    is_media = bool(update.message.photo or update.message.video)
-    is_audio = bool(update.message.voice or update.message.audio)
-    is_text = bool(update.message.text and not update.message.caption)
-
-    gender, emoji, cover = "CEWE","👙",COVER_CEWE
-    if "COWO" in caption_user.upper():
-        if is_media:
-            gender, emoji, cover = "COWO","🩲",COVER_COWO
-        elif is_audio or is_text:
-            gender, emoji, cover = "COWO","🧒",COVER_COWO
-    else:
-        if is_media:
-            gender, emoji, cover = "CEWE","👙",COVER_CEWE
-        elif is_audio or is_text:
-            gender, emoji, cover = "CEWE","🧕",COVER_CEWE
-
-    views = counter["views"] + random.randint(2,8)
-    comments = counter["comments"] + random.randint(0,3)
-    counter["views"],counter["comments"] = views,comments
-
-    category = None
-    for key in CHANNEL_MAP.keys():
-        if key in caption_user.upper():
-            category = key
-            break
-    if not category:
-        await update.message.reply_text("❌ Tidak ada kategori cocok (MENFESS / DONASI / MOAN).")
-        return
-
-    target_ch = CHANNEL_MAP[category]
-    thread_id = THREAD_MAP[category]
-
-    caption_channel = (
-        f"📌 GENDER: {gender}\n"
-        f"{emoji} {caption_user}\n\n"
-        f"✨ INSTRUKSI ✨\n"
-        f"👉 Tekan tombol rating di bawah\n"
-        f"👉 Komentar? Join diskusi (link di bawah)\n\n"
-        f"#{gender}\n\n"
-        f"👁️ {views}   💬 {comments}   🤖 Bot\n\n"
-        f"🌟 RATING TERKINI: -\n"
-        f"💬 Diskusi: https://t.me/c/1003033445498"
+    await update.message.reply_text(
+        "Selamat datang di EksibNih 🤖\n\nPilih jenis kelamin mu dulu ya:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-    kb = rating_keyboard("tmp")
-    msg = None
-
-    if category=="MENFESS" and update.message.text:
-        msg = await context.bot.send_message(chat_id=target_ch,text=caption_channel,parse_mode="HTML",reply_markup=kb)
-    elif category=="DONASI":
-        if update.message.photo:
-            msg = await context.bot.send_photo(chat_id=target_ch,photo=update.message.photo[-1].file_id,
-                                               caption=caption_channel,parse_mode="HTML",has_spoiler=True,reply_markup=kb)
-        elif update.message.video:
-            msg = await context.bot.send_video(chat_id=target_ch,video=update.message.video.file_id,
-                                               caption=caption_channel,parse_mode="HTML",has_spoiler=True,reply_markup=kb)
-    elif category=="MOAN":
-        if update.message.voice:
-            msg = await context.bot.send_voice(chat_id=target_ch,voice=update.message.voice.file_id,
-                                               caption=caption_channel,parse_mode="HTML",reply_markup=kb)
-        elif update.message.audio:
-            msg = await context.bot.send_audio(chat_id=target_ch,audio=update.message.audio.file_id,
-                                               caption=caption_channel,parse_mode="HTML",reply_markup=kb)
+# ---------- PILIH GENDER ----------
+async def pilih_gender(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    gender = query.data.replace("gender_", "")
+    user_data[query.from_user.id] = {"gender": gender}
+    uid = query.from_user.id
+    sudah_join = await check_all_membership(context.bot, uid)
+    if not sudah_join:
+        keyboard = [
+            [InlineKeyboardButton("👉 Join Group Nabrutt", url=URL_NABRUTT)],
+            [InlineKeyboardButton("👉 Join Group Diskusi", url=URL_DISKUSI)],
+            [InlineKeyboardButton("👉 Join Channel Menfess", url=URL_MENFESS)],
+            [InlineKeyboardButton("👉 Join Channel PAP", url=URL_PAP)],
+            [InlineKeyboardButton("👉 Join Channel Moan", url=URL_MOAN)],
+            [InlineKeyboardButton("✅ Sudah Join Semua", callback_data="cek_join")]
+        ]
+        await query.edit_message_text(
+            f"Gender kamu: {gender.upper()} ✅\n\n⚠️ Sebelum lanjut, wajib join semua group & channel di bawah ini:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
     else:
-        await update.message.reply_text(f"❌ Format konten tidak sesuai untuk kategori {category}.")
+        await tampilkan_menu(query)
+
+# ---------- CEK JOIN ----------
+async def cek_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    uid = query.from_user.id
+    sudah_join = await check_all_membership(context.bot, uid)
+    if sudah_join:
+        await tampilkan_menu(query)
+    else:
+        await query.edit_message_text("❌ Kamu belum join semua group/channel.\n\nSilakan join dulu baru lanjut.")
+
+# ---------- MENU ----------
+async def tampilkan_menu(query):
+    keyboard = [
+        [InlineKeyboardButton("💌 Menfess 18+", callback_data="jenis_menfess")],
+        [InlineKeyboardButton("📸 Pap Cabul", callback_data="jenis_pap")],
+        [InlineKeyboardButton("🎙 Moan 18+", callback_data="jenis_moan")]
+    ]
+    await query.edit_message_text(
+        "✅ Semua step sudah selesai!\n\nPilih jenis postingan:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+# ---------- HANDLE VOTE ----------
+async def handle_vote(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    uid = query.from_user.id
+    _, key, action = query.data.split("|")
+
+    if key not in vote_tracker:
+        vote_tracker[key] = {"emoji": {}, "nilai": {}}
+
+    # Emoji
+    if action in ["like", "love", "splash"]:
+        if uid in vote_tracker[key]["emoji"]:
+            await query.answer("⚠️ Kamu sudah pilih emoji!", show_alert=True)
+            return
+        vote_tracker[key]["emoji"][uid] = action
+        if key not in emoji_counter:
+            emoji_counter[key] = {"👍":0, "💖":0, "💦":0}
+        if action == "like": emoji_counter[key]["👍"] += 1
+        elif action == "love": emoji_counter[key]["💖"] += 1
+        elif action == "splash": emoji_counter[key]["💦"] += 1
+
+    # Nilai
+    elif action.isdigit():
+        if uid in vote_tracker[key]["nilai"]:
+            await query.answer("⚠️ Kamu sudah kasih nilai!", show_alert=True)
+            return
+        vote_tracker[key]["nilai"][uid] = int(action)
+
+    counts = emoji_counter.get(key, {"👍":0, "💖":0, "💦":0})
+    await query.message.edit_reply_markup(reply_markup=emoji_keyboard(key))
+    await query.answer("✅ Pilihan kamu tersimpan!")
+
+# ---------- HANDLE MESSAGE ----------
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    if uid not in user_data or "jenis" not in user_data[uid]:
         return
+    jenis = user_data[uid]["jenis"]
+    gender_text = format_gender(user_data[uid].get("gender",""))
 
-    kb = rating_keyboard(msg.message_id)
-    await context.bot.edit_message_reply_markup(chat_id=target_ch,message_id=msg.message_id,reply_markup=kb)
+    caption = update.message.caption or update.message.text or ""
 
-    link = f"https://t.me/c/{str(target_ch)[4:]}/{msg.message_id}"
-    keyboard_info = InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=link)]])
-    info_text = f"📢 {category} 18+\n👤 Gender: {gender}\n👉 Klik tombol untuk lihat full di channel"
-    await context.bot.send_message(chat_id=GC_NABRUTT,text=info_text,parse_mode="HTML",
-                                   message_thread_id=thread_id,reply_markup=keyboard_info)
+    # --- MENFESS ---
+    if jenis == "menfess":
+        # Thread
+        await context.bot.send_message(
+            chat_id=GROUP_NABRUTT,
+            message_thread_id=THREAD_MENFESS,
+            text=f"MENFESS 💌 18+\n\n🕵️ Gender: {gender_text}\n\n{caption}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_MENFESS)]])
+        )
+        # Channel
+        msg = await context.bot.send_message(
+            chat_id=CHANNEL_MENFESS_ID,
+            text=f"MENFESS 💌 18+\n\n👤 Gender: {gender_text}\n\n{caption}\n\n💬 Komentar: {URL_DISKUSI}"
+        )
+        key = f"{msg.chat_id}-{msg.message_id}"
+        emoji_counter[key] = {"👍":0,"💖":0,"💦":0}
+        await msg.edit_reply_markup(reply_markup=emoji_keyboard(key))
+        # Diskusi
+        await context.bot.send_message(
+            chat_id=GROUP_DISKUSI,
+            text=f"MENFESS 💌 18+\n\n👤 Gender: {gender_text}\n\n{caption}",
+            reply_markup=emoji_keyboard(key)
+        )
 
-# ===== CALLBACK HANDLER RATING =====
-async def handle_rating(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user_id = query.from_user.id
-    rating = int(query.data.split("|")[1])
-    message_id = str(query.data.split("|")[0])
-    stage_name = "Anon"
+    # --- PAP ---
+    elif jenis == "pap":
+        tipe = user_data[uid].get("pap_type","foto")
+        file_id = None
+        title = "PAPBRUTT 📸" if tipe=="foto" else "VIDEOBRUTT 🎥"
 
-    save_rating(message_id,user_id,stage_name,rating)
-    avg = get_average_rating(message_id)
+        if tipe=="foto" and update.message.photo:
+            file_id = update.message.photo[-1].file_id
+            # Thread
+            await context.bot.send_message(
+                chat_id=GROUP_NABRUTT,
+                message_thread_id=THREAD_PAP,
+                text=f"{title}\n\n🕵️ Gender: {gender_text}\n\n{caption}",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_PAP)]])
+            )
+            # Channel
+            msg = await context.bot.send_photo(
+                chat_id=CHANNEL_PAP_ID,
+                photo=file_id,
+                caption=f"{title}\n👤 Gender: {gender_text}\n\n{caption}\n\n💬 Komentar: {URL_DISKUSI}",
+                has_spoiler=True
+            )
+            key = f"{msg.chat_id}-{msg.message_id}"
+            emoji_counter[key] = {"👍":0,"💖":0,"💦":0}
+            await msg.edit_reply_markup(reply_markup=emoji_keyboard(key))
+            # Diskusi
+            await context.bot.send_photo(
+                chat_id=GROUP_DISKUSI,
+                photo=file_id,
+                caption=f"{title}\n👤 Gender: {gender_text}\n\n{caption}",
+                has_spoiler=True,
+                reply_markup=emoji_keyboard(key)
+            )
 
-    try:
-        message = query.message
-        caption_lines = message.caption.split("\n")
-        for i,line in enumerate(caption_lines):
-            if line.startswith("🌟 RATING TERKINI:"):
-                caption_lines[i] = f"🌟 RATING TERKINI: {avg}"
-        new_caption = "\n".join(caption_lines)
-        await context.bot.edit_message_caption(chat_id=message.chat_id,message_id=message.message_id,
-                                               caption=new_caption,parse_mode="HTML",reply_markup=message.reply_markup)
-        await query.answer(f"✅ Rating {rating} diterima (anonim)")
-    except Exception:
-        await query.answer("⚠️ Terjadi kesalahan")
+        elif tipe=="video" and update.message.video:
+            file_id = update.message.video.file_id
+            # Thread
+            await context.bot.send_message(
+                chat_id=GROUP_NABRUTT,
+                message_thread_id=THREAD_PAP,
+                text=f"{title}\n\n🕵️ Gender: {gender_text}\n\n{caption}",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_PAP)]])
+            )
+            # Channel
+            msg = await context.bot.send_video(
+                chat_id=CHANNEL_PAP_ID,
+                video=file_id,
+                caption=f"{title}\n👤 Gender: {gender_text}\n\n{caption}\n\n💬 Komentar: {URL_DISKUSI}",
+                has_spoiler=True
+            )
+            key = f"{msg.chat_id}-{msg.message_id}"
+            emoji_counter[key] = {"👍":0,"💖":0,"💦":0}
+            await msg.edit_reply_markup(reply_markup=emoji_keyboard(key))
+            # Diskusi
+            await context.bot.send_video(
+                chat_id=GROUP_DISKUSI,
+                video=file_id,
+                caption=f"{title}\n👤 Gender: {gender_text}\n\n{caption}",
+                has_spoiler=True,
+                reply_markup=emoji_keyboard(key)
+            )
 
-# ===== START BOT =====
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("MENFESS 18+", callback_data="START_MENFESS")],
-        [InlineKeyboardButton("DONASI PAP CABUL", callback_data="START_DONASI")],
-        [InlineKeyboardButton("MOAN 18+", callback_data="START_MOAN")],
-        [InlineKeyboardButton("Top Terbaik", callback_data="TOP_ALL")],
-        [InlineKeyboardButton("Top Hari Ini", callback_data="TOP_TODAY")]
-    ])
-    await update.message.reply_text("Selamat datang! Pilih topik:", reply_markup=keyboard)
+    # --- MOAN ---
+    elif jenis == "moan" and update.message.voice:
+        file_id = update.message.voice.file_id
+        # Thread
+        await context.bot.send_message(
+            chat_id=GROUP_NABRUTT,
+            message_thread_id=THREAD_MOAN,
+            text=f"MOANBRUTT 🎧\n\n🕵️ Gender: {gender_text}\n\n{caption}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_MOAN)]])
+        )
+        # Channel
+        msg = await context.bot.send_voice(
+            chat_id=CHANNEL_MOAN_ID,
+            voice=file_id,
+            caption=f"MOANBRUTT 🎧\n👤 Gender: {gender_text}\n\n{caption}\n\n💬 Komentar: {URL_DISKUSI}",
+            has_spoiler=True
+        )
+        key = f"{msg.chat_id}-{msg.message_id}"
+        emoji_counter[key] = {"👍":0,"💖":0,"💦":0}
+        await msg.edit_reply_markup(reply_markup=emoji_keyboard(key))
+        # Diskusi
+        await context.bot.send_voice(
+            chat_id=GROUP_DISKUSI,
+            voice=file_id,
+            caption=f"MOANBRUTT 🎧\n👤 Gender: {gender_text}\n\n{caption}",
+            has_spoiler=True,
+            reply_markup=emoji_keyboard(key)
+        )
 
-# ===== INLINE CALLBACK MENU =====
-async def inline_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    data = query.data
+    # Balas user
+    keyboard = [
+        [InlineKeyboardButton("💌 Menfess 18+", callback_data="jenis_menfess")],
+        [InlineKeyboardButton("📸 Pap Cabul", callback_data="jenis_pap")],
+        [InlineKeyboardButton("🎙 Moan 18+", callback_data="jenis_moan")]
+    ]
+    await update.message.reply_text(
+        "✅ Postingan berhasil dikirim!\n\nMau kirim apa lagi?",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    user_data[uid].pop("jenis", None)
 
-    if data.startswith("START_"):
-        category = data.split("_")[1]
-        await query.answer(f"Silakan kirim konten untuk kategori {category}")
-    elif data == "TOP_ALL":
-        top = get_top_alltime()
-        text = "📊 Top Terbaik Sepanjang Masa\n"
-        for i,(name,score) in enumerate(top,1):
-            text += f"{i}. {name} - 🌟 {score} (votes: Voter1, Voter2,...)\n"
-        await query.message.edit_text(text)
-    elif data == "TOP_TODAY":
-        top = get_top_today()
-        text = "📊 Top Terlonte Hari Ini\n"
-        for i,(name,score) in enumerate(top,1):
-            text += f"{i}. {name} - 🌟 {score} (votes: Voter1, Voter2,...)\n"
-        await query.message.edit_text(text)
-
-async def run_bot():
-    application = Application.builder().token(TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_content))
-    application.add_handler(CallbackQueryHandler(handle_rating, pattern=r"\d+\|\d+"))
-    application.add_handler(CallbackQueryHandler(inline_callback))
-
-    scheduler.add_job(reset_top_daily,'cron',hour=0,minute=0)
-    scheduler.start()
-
-    print("Bot jalan...")
-    await application.run_polling()
-
-def run_flask():
-    app_flask.run(host="0.0.0.0", port=PORT)
+# ---------- MAIN ----------
+def main():
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(pilih_gender, pattern="^gender_"))
+    app.add_handler(CallbackQueryHandler(cek_join, pattern="^cek_join$"))
+    app.add_handler(CallbackQueryHandler(tampilkan_menu, pattern="^menu$"))
+    app.add_handler(CallbackQueryHandler(handle_vote, pattern="^vote"))
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
+    print("🤖 Bot jalan...")
+    app.run_polling(timeout=60)
 
 if __name__ == "__main__":
-    # Jalankan Flask di thread terpisah
-    threading.Thread(target=run_flask, daemon=True).start()
-
-    # Jalankan bot async mainloop
-    asyncio.run(run_bot())
+    main()
