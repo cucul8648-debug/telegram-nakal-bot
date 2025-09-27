@@ -25,11 +25,11 @@ CHANNEL_MOAN_ID = -1003196180758
 GROUP_DISKUSI = -1003033445498
 
 # URL Join / Redirect
-URL_NABRUTT = "https://t.me/+ptW3x7hLmhZkOTZl"
+URL_NABRUTT = "https://t.me/+a3Bd3FDl5HY2NjFl"
 URL_MENFESS = "https://t.me/MenfessNABRUTT"
 URL_PAP = "https://t.me/PAPCABULNABRUTT"
 URL_MOAN = "https://t.me/MOAN18NABRUTT"
-URL_DISKUSI = "https://t.me/+NHZRuZGIyehhNzk1"
+URL_DISKUSI = "https://t.me/+dD-sAhjjsJgxZGVl"
 
 # SIMPAN DATA USER
 user_data = {}
