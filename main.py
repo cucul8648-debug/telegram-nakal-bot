@@ -30,7 +30,8 @@ URL_DISKUSI = "https://t.me/+dD-sAhjjsJgxZGVl"
 
 # SIMPAN DATA USER
 user_data = {}
-emoji_counter = {}  # hitung interaksi per post
+emoji_counter = {}  
+user_vote = {}
 
 # ================= LOGGING =================
 logging.basicConfig(
@@ -154,27 +155,53 @@ async def pilih_pap_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data[query.from_user.id]["pap_type"] = tipe
     await query.edit_message_text(f"✅ Kamu memilih PAP tipe *{tipe.upper()}*.\n\nKirim {tipe} sekarang!", parse_mode="Markdown")
 
+
 # ---------- HANDLE EMOJI ----------
 async def handle_emoji(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    uid   = query.from_user.id
+    mid   = query.message.message_id
     await query.answer()
-    data = query.data
-    mid  = query.message.message_id
+
+    # Jika user sudah vote di message ini, tolak
+    if (mid, uid) in user_vote:
+        await query.answer("❌ Kamu sudah memilih emoji.", show_alert=True)
+        return
+
+    # Catat vote pertama
+    choice = query.data                  # <- tentukan pilihan dulu
+    user_vote[(mid, uid)] = choice       # <- lalu simpan
+
+    # Inisialisasi counter kalau belum ada
     if mid not in emoji_counter:
-        emoji_counter[mid] = {"👍":0, "💌":0, "💦":0}
-    if data == "like":   emoji_counter[mid]["👍"] += 1
-    if data == "love":   emoji_counter[mid]["💌"] += 1
-    if data == "splash": emoji_counter[mid]["💦"] += 1
+        emoji_counter[mid] = {"👍": 0, "💌": 0, "💦": 0}
+
+    # Update sesuai pilihan
+    if choice == "like":
+        emoji_counter[mid]["👍"] += 1
+    elif choice == "love":
+        emoji_counter[mid]["💌"] += 1
+    elif choice == "splash":
+        emoji_counter[mid]["💦"] += 1
+
     c = emoji_counter[mid]
-    await query.message.edit_reply_markup(InlineKeyboardMarkup([[
-        InlineKeyboardButton(f"👍 {c['👍']}", callback_data="like"),
-        InlineKeyboardButton(f"💌 {c['💌']}", callback_data="love"),
-        InlineKeyboardButton(f"💦 {c['💦']}", callback_data="splash")
-    ],
-    [
-        InlineKeyboardButton("💬 Komentar", url=URL_DISKUSI),
-        InlineKeyboardButton("👥 GC Nabrutt", url=URL_NABRUTT)
-    ]]))
+
+    # Update tombol dengan jumlah terbaru
+    await query.message.edit_reply_markup(
+        InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(f"👍 {c['👍']}", callback_data="like"),
+                InlineKeyboardButton(f"💌 {c['💌']}", callback_data="love"),
+                InlineKeyboardButton(f"💦 {c['💦']}", callback_data="splash")
+            ],
+            [
+                InlineKeyboardButton("💬 Komentar", url=URL_DISKUSI),
+                InlineKeyboardButton("👥 GC Nabrutt", url=URL_NABRUTT)
+            ]
+        ])
+    )
+
+
 
 # ---------- HANDLE MESSAGE ----------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
