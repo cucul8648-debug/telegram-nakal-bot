@@ -204,7 +204,7 @@ async def handle_vote(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.message.edit_reply_markup(reply_markup=emoji_keyboard(key))
     await query.answer("✅ Pilihan kamu tersimpan!")
 
-# ---------- HANDLE MESSAGE ----------
+    # ---------- HANDLE MESSAGE ----------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if uid not in user_data or "jenis" not in user_data[uid]:
@@ -212,10 +212,107 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     jenis = user_data[uid]["jenis"]
     gender_text = format_gender(user_data[uid].get("gender",""))
 
-    caption = update.message.caption or update.message.text or ""
-    ...
-    # seluruh isi fungsi dari kode asli kamu di sini
+    caption = update.message.caption or ""
+    text = update.message.text or ""
 
+    # ----- MENFESS -----
+    if jenis == "menfess":
+        # thread GC hanya text + link
+        await context.bot.send_message(
+            chat_id=GROUP_NABRUTT,
+            message_thread_id=THREAD_MENFESS,
+            text=f"MENFESS 💌18+\n\n🕵️ Gender: {gender_text}\n\n{text}\n\n👉 Klik tombol untuk lihat full di channel",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_MENFESS)]])
+        )
+        # channel full text + emoji interaktif
+        if text:
+            await context.bot.send_message(
+                chat_id=CHANNEL_MENFESS_ID,
+                text=f"MENFESS 💌18+\n\n🕵️ Gender: {gender_text}\n\n{text}",
+                reply_markup=emoji_keyboard()
+            )
+
+    # ----- PAP -----
+    elif jenis == "pap":
+        if "pap_type" not in user_data[uid]:
+            await update.message.reply_text("⚠️ Pilih tipe PAP dulu (Foto/Video).")
+            return
+        tipe = user_data[uid]["pap_type"]
+        file_id = None
+        title = "PAPBRUTT 📸" if tipe == "foto" else "VIDEOBRUTT 🎥"
+
+        if tipe == "foto" and update.message.photo:
+            file_id = update.message.photo[-1].file_id
+            # thread GC
+            await context.bot.send_photo(
+                chat_id=GROUP_NABRUTT,
+                message_thread_id=THREAD_PAP,
+                photo=file_id,
+                caption=f"{title}\n\n🕵️ Gender: {gender_text}\n\n{caption}\n\n👉 Klik tombol untuk lihat full di channel",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_PAP)]])
+            )
+            # channel full
+            await context.bot.send_photo(
+                chat_id=CHANNEL_PAP_ID,
+                photo=file_id,
+                caption=f"{title}\n👤 Gender: {gender_text}\n\n{caption}",
+                has_spoiler=True,
+                reply_markup=emoji_keyboard()
+            )
+        elif tipe == "video" and update.message.video:
+            file_id = update.message.video.file_id
+            await context.bot.send_video(
+                chat_id=GROUP_NABRUTT,
+                message_thread_id=THREAD_PAP,
+                video=file_id,
+                caption=f"{title}\n\n🕵️ Gender: {gender_text}\n\n{caption}\n\n👉 Klik tombol untuk lihat full di channel",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_PAP)]])
+            )
+            await context.bot.send_video(
+                chat_id=CHANNEL_PAP_ID,
+                video=file_id,
+                caption=f"{title}\n👤 Gender: {gender_text}\n\n{caption}",
+                has_spoiler=True,
+                reply_markup=emoji_keyboard()
+            )
+        else:
+            await update.message.reply_text(f"⚠️ Kirim {tipe} sesuai pilihanmu!")
+            return
+        user_data[uid].pop("pap_type", None)
+
+    # ----- MOAN -----
+    elif jenis == "moan":
+        if update.message.voice:
+            file_id = update.message.voice.file_id
+            # thread GC hanya text + link
+            await context.bot.send_message(
+                chat_id=GROUP_NABRUTT,
+                message_thread_id=THREAD_MOAN,
+                text=f"MOANBRUTT 🎧\n\n🕵️ Gender: {gender_text}\n\n{caption}\n\n👉 Klik tombol untuk lihat full di channel",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_MOAN)]])
+            )
+            # channel full audio + emoji interaktif
+            await context.bot.send_voice(
+                chat_id=CHANNEL_MOAN_ID,
+                voice=file_id,
+                caption=f"MOANBRUTT 🎧\n👤 Gender: {gender_text}\n\n{caption}",
+                has_spoiler=True,
+                reply_markup=emoji_keyboard()
+            )
+        else:
+            await update.message.reply_text("⚠️ Kirim voice note ya!")
+
+    # Reset & tampil menu lagi
+    keyboard = [
+        [InlineKeyboardButton("💌 Menfess 18+", callback_data="jenis_menfess")],
+        [InlineKeyboardButton("📸 Pap Cabul", callback_data="jenis_pap")],
+        [InlineKeyboardButton("🎙 Moan 18+", callback_data="jenis_moan")]
+    ]
+    await update.message.reply_text(
+        "✅ Postingan berhasil dikirim!\n\nMau kirim apa lagi?",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    user_data[uid].pop("jenis", None)
 # ---------- MAIN ----------
 def main():
     app = Application.builder().token(TOKEN).build()
