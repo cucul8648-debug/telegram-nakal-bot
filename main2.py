@@ -6,7 +6,7 @@ from telegram.ext import (
 )
 
 # ================== KONFIG ==================
-TOKEN = "ISI_TOKEN_BOT_ANDA"
+TOKEN = "8466148433:AAEsWgCp4dq8kqpsaPQko1yO4rjkT_HgRe0"
 
 # GROUP + THREAD
 GROUP_NABRUTT  = -1003098333444
