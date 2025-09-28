@@ -263,6 +263,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_video(
                 CHANNEL_PAP_ID, video=fid,
                 caption=f"{title}\n\n🕵️ Gender: {gender}\n\n{caption or text}",
+                has_spoiler=True,
                 reply_markup=emoji_keyboard_initial("pap")
             )
         else:
