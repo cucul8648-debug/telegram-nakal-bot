@@ -1,6 +1,5 @@
 # filename: nabrutt_bot_full_dual_webhook.py
-# install dulu:
-# pip install python-telegram-bot==20.3 Flask==2.3.3
+# pip install python-telegram-bot==20.3 Flask==3.0.3
 
 import os, logging, asyncio
 from flask import Flask, request
@@ -33,7 +32,6 @@ LINKS = [
     ("🔞 CH 𝙈𝙊𝘼𝙉", "https://t.me/Moan18Nabrutt"),
 ]
 TIMEZONE = ZoneInfo("Asia/Jakarta")
-AUTO_DELETE_SECONDS = 30
 
 # ================== LOGGING ==================
 logging.basicConfig(level=logging.INFO)
@@ -184,31 +182,36 @@ welcome_app = create_app_welcome()
 
 @flask_app.route("/")
 def home():
-    return "🚀 NABRUTT BOT Webhook aktif!"
+    return "🚀 NABRUTT BOT Webhook aktif!", 200
 
-@flask_app.route("/posting", methods=["POST"])
-async def webhook_posting():
-    update = Update.de_json(await request.get_json(force=True), posting_app.bot)
-    await posting_app.process_update(update)
-    return "ok"
+@flask_app.post("/posting")
+def webhook_posting():
+    data = request.get_json(force=True)
+    update = Update.de_json(data, posting_app.bot)
+    asyncio.run(posting_app.process_update(update))
+    return "ok", 200
 
-@flask_app.route("/welcome", methods=["POST"])
-async def webhook_welcome():
-    update = Update.de_json(await request.get_json(force=True), welcome_app.bot)
-    await welcome_app.process_update(update)
-    return "ok"
+@flask_app.post("/welcome")
+def webhook_welcome():
+    data = request.get_json(force=True)
+    update = Update.de_json(data, welcome_app.bot)
+    asyncio.run(welcome_app.process_update(update))
+    return "ok", 200
 
 # ==========================================================
 # ================== SETUP & RUN ==========================
 # ==========================================================
-async def setup_webhooks():
-    # Ambil URL otomatis dari Render
-    base_url = os.environ.get("RENDER_EXTERNAL_URL", "https://nabrutt-bot.onrender.com")
-    base_url = base_url.rstrip("/")
-    await posting_app.bot.set_webhook(f"{base_url}/posting")
-    await welcome_app.bot.set_webhook(f"{base_url}/welcome")
-    logger.info(f"✅ Webhook diset ke {base_url}")
-
 if __name__ == "__main__":
-    asyncio.run(setup_webhooks())
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    import httpx
+
+    base_url = os.environ.get("RENDER_EXTERNAL_URL", "https://telegram-nakal-bot.onrender.com").rstrip("/")
+
+    for token, endpoint in [
+        (TOKEN_POSTING, "posting"),
+        (TOKEN_WELCOME, "welcome")
+    ]:
+        url = f"{base_url}/{endpoint}"
+        httpx.post(f"https://api.telegram.org/bot{token}/setWebhook", json={"url": url})
+        logger.info(f"✅ Webhook diset ke {url}")
+
+    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
