@@ -11,7 +11,7 @@ from telegram.ext import (
 )
 
 # ================== KONFIG ==================
-TOKEN = "8466148433:AAEsWgCp4dq8kqpsaPQko1yO4rjkT_HgRe0"
+TOKEN = "8466148433:AAHMfrJJhuthLTZG7p_YJ8uWWJRouniuJyo"
 
 # GROUP + THREAD
 GROUP_NABRUTT  = -1003098333444
