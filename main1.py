@@ -1,4 +1,13 @@
+# filename: main.py
+# requirements:
+#   python-telegram-bot==20.3
+#   Flask==2.3.3
+
+import os
 import logging
+import asyncio
+import threading
+from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
@@ -301,10 +310,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ================== FLASK SERVER ==========================
 # ==========================================================
 flask_app = Flask(__name__)
-posting_app = create_app_posting()
-welcome_app = create_app_welcome()
 
-# Buat event loop global untuk Render
+# Build telegram Application (single bot)
+app = Application.builder().token(TOKEN).build()
+
+# register handlers exactly as before
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CallbackQueryHandler(pilih_gender, pattern="^gender_"))
+app.add_handler(CallbackQueryHandler(cek_join,    pattern="^cek_join$"))
+app.add_handler(CallbackQueryHandler(pilih_jenis, pattern="^jenis_"))
+app.add_handler(CallbackQueryHandler(pilih_pap_type, pattern="^pap_"))
+app.add_handler(CallbackQueryHandler(handle_emoji,   pattern="^(like|love|splash)\|"))
+app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
+
+# Buat event loop global untuk Render (agar Flask thread bisa submit coroutine)
 loop = asyncio.new_event_loop()
 threading.Thread(target=loop.run_forever, daemon=True).start()
 
@@ -312,40 +331,31 @@ threading.Thread(target=loop.run_forever, daemon=True).start()
 def home():
     return "🚀 NABRUTT BOT Webhook aktif!"
 
-@flask_app.route("/posting", methods=["POST"])
-def webhook_posting():
-    update = Update.de_json(request.get_json(force=True), posting_app.bot)
-    asyncio.run_coroutine_threadsafe(posting_app.process_update(update), loop)
-    return "ok", 200
-
-@flask_app.route("/welcome", methods=["POST"])
-def webhook_welcome():
-    update = Update.de_json(request.get_json(force=True), welcome_app.bot)
-    asyncio.run_coroutine_threadsafe(welcome_app.process_update(update), loop)
+@flask_app.route("/webhook", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), app.bot)
+    # kirim ke event loop yang berjalan di background
+    asyncio.run_coroutine_threadsafe(app.process_update(update), loop)
     return "ok", 200
 
 # ==========================================================
 # ================== SETUP WEBHOOK ==========================
 # ==========================================================
-async def setup_webhooks():
+async def setup_webhook():
     base_url = os.environ.get("RENDER_EXTERNAL_URL", "https://telegram-nakal-bot.onrender.com").rstrip("/")
-    await posting_app.bot.set_webhook(f"{base_url}/posting")
-    await welcome_app.bot.set_webhook(f"{base_url}/welcome")
-    logger.info(f"✅ Webhook diset ke {base_url}")
-
+    webhook_url = f"{base_url}/webhook"
+    await app.bot.set_webhook(webhook_url)
+    logger.info(f"✅ Webhook diset ke {webhook_url}")
 
 # ---------- MAIN ----------
-def main():
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(pilih_gender, pattern="^gender_"))
-    app.add_handler(CallbackQueryHandler(cek_join,    pattern="^cek_join$"))
-    app.add_handler(CallbackQueryHandler(pilih_jenis, pattern="^jenis_"))
-    app.add_handler(CallbackQueryHandler(pilih_pap_type, pattern="^pap_"))
-    app.add_handler(CallbackQueryHandler(handle_emoji,   pattern="^(like|love|splash)\|"))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
-    print("🤖 Bot jalan...")
-    app.run_polling(timeout=60)
-
 if __name__ == "__main__":
-    main()
+    async def main():
+        # initialize app (required) and set webhook
+        await app.initialize()
+        await setup_webhook()
+        # jalankan Flask (blocking)
+        port = int(os.environ.get("PORT", 8080))
+        flask_app.run(host="0.0.0.0", port=port)
+
+    # run initializer + webhook setup in asyncio, then Flask runs
+    asyncio.run(main())
