@@ -13,7 +13,7 @@ from telegram.ext import (
 from zoneinfo import ZoneInfo
 
 # ================== TOKEN ==================
-TOKEN_POSTING = "8466148433:AAHG4-yrXyHvV2yJb0C9WcGOcSvWevCz9M8"
+TOKEN_POSTING = "8466148433:AAEpJ5tdgjCft5wvBRa7TNUa205u2gFhLBE"
 
 # ================== CHANNEL & GROUP ==================
 CHANNEL_MENFESS_ID = -1002989043936
