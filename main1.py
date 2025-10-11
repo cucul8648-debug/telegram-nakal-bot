@@ -32,7 +32,7 @@ import numpy as np
 import sqlite3
 
 # ================== KONFIG TOKEN ==================
-TOKEN_POSTING = os.environ.get("TOKEN_POSTING", "8167264410:AAH3YtgHIC2QJvHsvJtZ5kAkChGOo1IS7hM")
+TOKEN_POSTING = os.environ.get("TOKEN_POSTING", "8069081808:AAEhlnUrZtwrqo5GUnHfuhdBXQN4o3LbDYc")
 TOKEN_WELCOME = os.environ.get("TOKEN_WELCOME", "8490098646:AAGNF2yYwb0OSWm7dw7EK0DsXY5x7hDz-30")
 
 # ================== KONFIG CHANNEL / GRUP ==================
