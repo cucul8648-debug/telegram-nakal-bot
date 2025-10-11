@@ -14,8 +14,8 @@ from telegram.ext import (
 from zoneinfo import ZoneInfo
 
 # ================== KONFIG TOKEN ==================
-TOKEN_POSTING = "8466148433:AAHMfrJJhuthLTZG7p_YJ8uWWJRouniuJyo"
-TOKEN_WELCOME = "8490098646:AAF3CZiIeTgJ-5XLOTJTm3yKHeC5Vjlh2cg"
+TOKEN_POSTING = "8466148433:AAHG4-yrXyHvV2yJb0C9WcGOcSvWevCz9M8"
+TOKEN_WELCOME = "8490098646:AAGNF2yYwb0OSWm7dw7EK0DsXY5x7hDz-30"
 
 # ================== KONFIG CHANNEL / GRUP ==================
 CHANNEL_MENFESS_ID = -1002989043936
