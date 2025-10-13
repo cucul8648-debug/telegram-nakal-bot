@@ -13,8 +13,8 @@ from telegram.ext import (
 )
 
 # ---------------- CONFIG - REPLACE THESE ----------------
-TOKEN = os.environ.get("TELEGRAM_TOKEN", "YOUR_BOT_TOKEN")  # set via env var in production
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://your-render-app.onrender.com")  # no trailing slash
+TOKEN = os.environ.get("TELEGRAM_TOKEN", "")  # set via env var in production
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")  # no trailing slash
 WEBHOOK_PATH = f"/{TOKEN}"
 PORT = int(os.environ.get("PORT", 10000))
 
