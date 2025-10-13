@@ -1,246 +1,199 @@
-# filename: main.py
-# install di requirements.txt:
-# python-telegram-bot==20.3
-# Flask==2.3.3
+# filename: nabrutt_bot_final.py
+# Install: pip install python-telegram-bot==20.3
 
-import os, logging, asyncio, threading
-from flask import Flask, request
+import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
-    MessageHandler, ChatJoinRequestHandler,
-    ContextTypes, filters
+    MessageHandler, ContextTypes, filters
 )
-from zoneinfo import ZoneInfo
 
-# ================== KONFIG TOKEN ==================
-TOKEN_POSTING = "8466148433:AAHG4-yrXyHvV2yJb0C9WcGOcSvWevCz9M8"
-TOKEN_WELCOME = "8490098646:AAGNF2yYwb0OSWm7dw7EK0DsXY5x7hDz-30"
+# ================== KONFIG ==================
+TOKEN = "8466148433:AAH9NFT_wrkBlZ-uO8hllAdxdTwFpLqip74"
 
-# ================== KONFIG CHANNEL / GRUP ==================
+# GROUP + THREAD
+GROUP_NABRUTT  = -1003098333444
+THREAD_MENFESS = 1036
+THREAD_PAP     = 393
+THREAD_MOAN    = 2298
+
+# CHANNEL
 CHANNEL_MENFESS_ID = -1002989043936
 CHANNEL_PAP_ID     = -1003189592682
 CHANNEL_MOAN_ID    = -1003196180758
-GROUP_NABRUTT_ID   = -1003098333444   # ganti sesuai group utama
-URL_NABRUTT        = "https://t.me/+a3Bd3FDl5HY2NjFl"
 
-IMG_COWO = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/cowo.png"
-IMG_CEWE = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/cewe.png"
+# URL Join / Redirect
+URL_NABRUTT    = "https://t.me/NABRUTT11"
+URL_GC_MENFESS = "https://t.me/MenfessNABRUTT"
+URL_GC_MOAN    = "https://t.me/MOAN18NABRUTT"
+URL_GC_PAP     = "https://t.me/PAPCABULNABRUTT"
 
-# ================== WELCOME CONFIG ==================
-LINKS = [
-    ("🔥 GC 𝙉𝘼𝘽𝙍𝙐𝙏𝙏", "https://t.me/nabrutt11"),
-    ("💌 CH 𝙈𝙀𝙉𝙁𝙀𝙎𝙎", "https://t.me/MenfessNabrutt"),
-    ("📸 CH 𝙋𝘼𝙋𝘽𝙍𝙐𝙏𝙏", "https://t.me/papcabulnabrutt"),
-    ("🔞 CH 𝙈𝙊𝘼𝙉", "https://t.me/Moan18Nabrutt"),
-]
-TIMEZONE = ZoneInfo("Asia/Jakarta")
+# HEADER IMAGE (THREAD)
+IMG_PAP_COWO      = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/PapBrutt_Cowo.png"
+IMG_PAP_CEWE      = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/PapBrutt_Cewe.png"
+IMG_VIDEO_COWO    = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/VideoBrutt_Cowo.png"
+IMG_VIDEO_CEWE    = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/VideoBrutt_Cewe.png"
+IMG_MENFESS_COWO  = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/MenfessBrutt_Cowo.png"
+IMG_MENFESS_CEWE  = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/MenfessBrutt_Cewe.png"
+IMG_MOAN_COWO     = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/MoanBrutt_Cowo.png"
+IMG_MOAN_CEWE     = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/MoanBrutt_Cewe.png"
 
-# ================== LOGGING ==================
-logging.basicConfig(level=logging.INFO)
+# SIMPAN DATA USER
+user_data = {}
+
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ================== DATA ==================
-user_data, emoji_counter, user_vote = {}, {}, {}
-
-# ==========================================================
-# ================== BOT 1: POSTING =========================
-# ==========================================================
+# ---------- HELPERS ----------
 def format_gender(gender: str) -> str:
     return "COWO 🤵‍♂️" if gender.lower() == "cowo" else "CEWE 👩‍🦰"
 
-def emoji_keyboard_initial(jenis):
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("👍 0", callback_data=f"like|{jenis}"),
-            InlineKeyboardButton("❤️ 0", callback_data=f"love|{jenis}"),
-            InlineKeyboardButton("💦 0", callback_data=f"splash|{jenis}")
-        ],
-        [InlineKeyboardButton("👥 Gabung GC Nabrutt", url=URL_NABRUTT)]
-    ])
+def format_channel_caption(topik, emoji_topik, gender_raw, caption_text):
+    gender_emoji = "🤵‍♂️" if gender_raw.lower() == "cowo" else "👩‍🦰"
+    gender = gender_raw.upper()
+    hashtag = f"#{gender} #{topik.upper()}"
+    return (
+        f"**{topik.upper()} {emoji_topik}**\n\n"
+        f"> **GENDER 🕵️ : {gender} {gender_emoji}**\n\n"
+        f"{caption_text.strip()}\n\n"
+        f"> **BERIKAN REACT DAN NILAI!**\n"
+        f"> **⭐ RATE 1–10**\n"
+        f"> **💬 COMMENT!**\n\n"
+        f"{hashtag}"
+    )
 
-# ========= CEK WAJIB JOIN =========
-async def is_member(context: ContextTypes.DEFAULT_TYPE, user_id: int) -> bool:
-    try:
-        member = await context.bot.get_chat_member(GROUP_NABRUTT_ID, user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except Exception as e:
-        logger.warning(f"Gagal cek member: {e}")
-        return False
-
-# ========= START POST =========
-async def start_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not await is_member(context, user_id):
-        btn = InlineKeyboardMarkup([[InlineKeyboardButton("Gabung dulu ke GC 🔥", url=URL_NABRUTT)]])
-        await update.message.reply_text("⚠️ Kamu harus join GC Nabrutt dulu sebelum posting.", reply_markup=btn)
-        return
-
-    kb = [
+# ---------- START ----------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
         [InlineKeyboardButton("🤵‍♂ Cowok", callback_data="gender_cowo")],
         [InlineKeyboardButton("👩‍🦰 Cewek", callback_data="gender_cewe")]
     ]
     await update.message.reply_text(
-        "Selamat datang di EksibNih 🤖\n\nPilih jenis kelaminmu dulu:",
-        reply_markup=InlineKeyboardMarkup(kb)
+        "Selamat datang di EksibNih 🤖\n\nPilih jenis kelaminmu dulu ya:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ========= PILIH GENDER =========
+# ---------- PILIH GENDER ----------
 async def pilih_gender(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query; await q.answer()
-    gender = q.data.replace("gender_", "")
-    user_data[q.from_user.id] = {"gender": gender}
-    kb = [
-        [InlineKeyboardButton("💌 Menfess", callback_data="jenis_menfess")],
-        [InlineKeyboardButton("📸 Pap", callback_data="jenis_pap")],
-        [InlineKeyboardButton("🎙 Moan", callback_data="jenis_moan")]
+    query = update.callback_query
+    await query.answer()
+    gender = query.data.replace("gender_", "")
+    user_data[query.from_user.id] = {"gender": gender}
+
+    keyboard = [
+        [InlineKeyboardButton("💌 Menfess 18+", callback_data="jenis_menfess")],
+        [InlineKeyboardButton("📸 Pap Cabul", callback_data="jenis_pap")],
+        [InlineKeyboardButton("🎙 Moan 18+", callback_data="jenis_moan")]
     ]
-    await q.edit_message_text(
-        f"Gender kamu: {format_gender(gender)} ✅\n\nPilih jenis posting:",
-        reply_markup=InlineKeyboardMarkup(kb)
+    await query.edit_message_text(
+        "✅ Semua step sudah selesai!\n\nPilih jenis postingan:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ========= PILIH JENIS =========
+# ---------- PILIH JENIS ----------
 async def pilih_jenis(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query; await q.answer()
-    jenis = q.data.replace("jenis_", "")
-    user_data[q.from_user.id]["jenis"] = jenis
-    await q.edit_message_text(f"Kirim konten untuk {jenis.upper()} sekarang!")
-
-# ========= EMOJI REACT =========
-async def handle_emoji(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query; await q.answer()
-    uid, mid = q.from_user.id, q.message.message_id
-    action, jenis = q.data.split("|", 1)
-
-    if (mid, uid) in user_vote:
-        await q.answer("Kamu sudah vote.", show_alert=True)
-        return
-
-    user_vote[(mid, uid)] = action
-    emoji_counter.setdefault(mid, {"👍":0,"❤️":0,"💦":0})
-    if action == "like": emoji_counter[mid]["👍"] += 1
-    elif action == "love": emoji_counter[mid]["❤️"] += 1
-    elif action == "splash": emoji_counter[mid]["💦"] += 1
-    c = emoji_counter[mid]
-
-    kb = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(f"👍 {c['👍']}", callback_data=f"like|{jenis}"),
-            InlineKeyboardButton(f"❤️ {c['❤️']}", callback_data=f"love|{jenis}"),
-            InlineKeyboardButton(f"💦 {c['💦']}", callback_data=f"splash|{jenis}")
-        ],
-        [InlineKeyboardButton("👥 GC Nabrutt", url=URL_NABRUTT)]
-    ])
-    await q.message.edit_reply_markup(kb)
-
-# ========= HANDLE PESAN =========
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid not in user_data: return
-    jenis = user_data[uid]["jenis"]
-    gender_raw = user_data[uid]["gender"]
-    caption = update.message.caption or update.message.text or ""
-    gender = format_gender(gender_raw)
-    header_img = IMG_COWO if gender_raw == "cowo" else IMG_CEWE
+    query = update.callback_query
+    await query.answer()
+    jenis = query.data.replace("jenis_", "")
+    uid = query.from_user.id
+    user_data.setdefault(uid, {})["jenis"] = jenis
 
     if jenis == "menfess":
-        await context.bot.send_photo(
-            CHANNEL_MENFESS_ID, photo=header_img,
-            caption=f"💌 MENFESS 18+\n🕵️ Gender: {gender}\n\n{caption}",
-            reply_markup=emoji_keyboard_initial("menfess"), has_spoiler=True
-        )
-    elif jenis == "pap" and update.message.photo:
-        fid = update.message.photo[-1].file_id
-        await context.bot.send_photo(
-            CHANNEL_PAP_ID, photo=fid,
-            caption=f"📸 PAPBRUTT\n🕵️ Gender: {gender}\n\n{caption}",
-            reply_markup=emoji_keyboard_initial("pap"), has_spoiler=True
-        )
-    elif jenis == "moan" and update.message.voice:
-        fid = update.message.voice.file_id
-        await context.bot.send_voice(
-            CHANNEL_MOAN_ID, voice=fid,
-            caption=f"🎙 MOANBRUTT\n🕵️ Gender: {gender}\n\n{caption}",
-            reply_markup=emoji_keyboard_initial("moan")
-        )
+        await query.edit_message_text("💌 Kamu memilih *MENFESS*.\n\nKirim teks menfess sekarang!", parse_mode="Markdown")
+    elif jenis == "pap":
+        keyboard = [
+            [InlineKeyboardButton("📸 Foto", callback_data="pap_foto")],
+            [InlineKeyboardButton("🎥 Video", callback_data="pap_video")]
+        ]
+        await query.edit_message_text("📸 Kamu memilih *PAP*.\n\nPilih tipe:", reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await query.edit_message_text("🎙 Kamu memilih *MOAN*.\n\nKirim voice note + caption (opsional).", parse_mode="Markdown")
 
-# ========= BUILD BOT POSTING =========
-def create_app_posting():
-    app = Application.builder().token(TOKEN_POSTING).build()
-    app.add_handler(CommandHandler("start", start_post))
-    app.add_handler(CallbackQueryHandler(pilih_gender, "^gender_"))
-    app.add_handler(CallbackQueryHandler(pilih_jenis, "^jenis_"))
-    app.add_handler(CallbackQueryHandler(handle_emoji, r"^(like|love|splash)\|"))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
-    return app
+async def pilih_pap_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    tipe = query.data.replace("pap_", "")
+    user_data[query.from_user.id]["pap_type"] = tipe
+    await query.edit_message_text(f"✅ Kamu memilih PAP tipe *{tipe.upper()}*.\n\nKirim {tipe} sekarang!", parse_mode="Markdown")
 
-# ==========================================================
-# ================== BOT 2: WELCOME =========================
-# ==========================================================
-def build_links_keyboard():
-    return InlineKeyboardMarkup([[InlineKeyboardButton(t, url=u)] for t, u in LINKS])
+# ---------- HANDLE MESSAGE ----------
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    if uid not in user_data or "jenis" not in user_data[uid]:
+        return
 
-async def join_request_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    req = update.chat_join_request
-    await req.approve()
-    user = req.from_user
-    await context.bot.send_message(
-        req.chat.id,
-        text=f"🌟 Selamat datang {user.mention_html()}!\nKlik tombol di bawah untuk akses semua area!",
-        parse_mode="HTML",
-        reply_markup=build_links_keyboard()
+    jenis = user_data[uid]["jenis"]
+    gender_raw = user_data[uid].get("gender", "")
+    caption = update.message.caption or update.message.text or ""
+
+    # Header images untuk thread
+    header_img = {
+        "menfess": IMG_MENFESS_COWO if gender_raw.lower() == "cowo" else IMG_MENFESS_CEWE,
+        "pap_foto": IMG_PAP_COWO if gender_raw.lower() == "cowo" else IMG_PAP_CEWE,
+        "pap_video": IMG_VIDEO_COWO if gender_raw.lower() == "cowo" else IMG_VIDEO_CEWE,
+        "moan": IMG_MOAN_COWO if gender_raw.lower() == "cowo" else IMG_MOAN_CEWE
+    }[jenis if jenis != "pap" else f"pap_{user_data[uid].get('pap_type', 'foto')}"]
+
+    topik_dict = {
+        "menfess": "MENFESSBRUTT",
+        "pap": "PAPBRUTT",
+        "moan": "MOANBRUTT"
+    }
+    topik = topik_dict[jenis if jenis != "pap" else "pap"]
+    emoji_dict = {
+        "menfess": "💌",
+        "pap": "📸",
+        "moan": "🎙"
+    }
+    emoji_topik = emoji_dict[jenis if jenis != "pap" else user_data[uid].get("pap_type","foto")]
+
+    # ---------- SEND THREAD (GC NABRUTT) ----------
+    await context.bot.send_photo(
+        chat_id=GROUP_NABRUTT,
+        message_thread_id={
+            "menfess": THREAD_MENFESS,
+            "pap": THREAD_PAP,
+            "moan": THREAD_MOAN
+        }[jenis if jenis != "pap" else "pap"],
+        photo=header_img,
+        caption=f"{topik} {emoji_topik}\n\nGender 🕵️ : {format_gender(gender_raw)}\n\n{caption}\n\n👉 Klik tombol untuk lihat full di channel",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔞 Lihat Full", url=URL_NABRUTT)]])
     )
 
-def create_app_welcome():
-    app = Application.builder().token(TOKEN_WELCOME).build()
-    app.add_handler(ChatJoinRequestHandler(join_request_handler))
-    return app
+    # ---------- SEND CHANNEL ----------
+    channel_caption = format_channel_caption(topik, emoji_topik, gender_raw, caption)
+    channel_id = {
+        "menfess": CHANNEL_MENFESS_ID,
+        "pap": CHANNEL_PAP_ID,
+        "moan": CHANNEL_MOAN_ID
+    }[jenis if jenis != "pap" else "pap"]
+    if jenis == "pap" and update.message.photo:
+        fid = update.message.photo[-1].file_id
+        await context.bot.send_photo(channel_id, photo=fid, caption=channel_caption)
+    elif jenis == "pap" and update.message.video:
+        fid = update.message.video.file_id
+        await context.bot.send_video(channel_id, video=fid, caption=channel_caption)
+    elif jenis == "menfess":
+        await context.bot.send_photo(channel_id, photo=header_img, caption=channel_caption)
+    elif jenis == "moan" and update.message.voice:
+        fid = update.message.voice.file_id
+        await context.bot.send_voice(channel_id, voice=fid, caption=channel_caption)
 
-# ==========================================================
-# ================== FLASK SERVER ==========================
-# ==========================================================
-flask_app = Flask(__name__)
-posting_app = create_app_posting()
-welcome_app = create_app_welcome()
+    # Reset jenis
+    user_data[uid].pop("jenis", None)
+    if "pap_type" in user_data[uid]:
+        user_data[uid].pop("pap_type")
 
-# Buat event loop global untuk Render
-loop = asyncio.new_event_loop()
-threading.Thread(target=loop.run_forever, daemon=True).start()
+# ---------- MAIN ----------
+def main():
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(pilih_gender, pattern="^gender_"))
+    app.add_handler(CallbackQueryHandler(pilih_jenis, pattern="^jenis_"))
+    app.add_handler(CallbackQueryHandler(pilih_pap_type, pattern="^pap_"))
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
+    print("🤖 Bot jalan...")
+    app.run_polling(timeout=60)
 
-@flask_app.route("/")
-def home():
-    return "🚀 NABRUTT BOT Webhook aktif!"
-
-@flask_app.route("/posting", methods=["POST"])
-def webhook_posting():
-    update = Update.de_json(request.get_json(force=True), posting_app.bot)
-    asyncio.run_coroutine_threadsafe(posting_app.process_update(update), loop)
-    return "ok", 200
-
-@flask_app.route("/welcome", methods=["POST"])
-def webhook_welcome():
-    update = Update.de_json(request.get_json(force=True), welcome_app.bot)
-    asyncio.run_coroutine_threadsafe(welcome_app.process_update(update), loop)
-    return "ok", 200
-
-# ==========================================================
-# ================== SETUP WEBHOOK ==========================
-# ==========================================================
-async def setup_webhooks():
-    base_url = os.environ.get("RENDER_EXTERNAL_URL", "https://telegram-nakal-bot.onrender.com").rstrip("/")
-    await posting_app.bot.set_webhook(f"{base_url}/posting")
-    await welcome_app.bot.set_webhook(f"{base_url}/welcome")
-    logger.info(f"✅ Webhook diset ke {base_url}")
-
-# ==========================================================
-# ================== MAIN ==================================
-# ==========================================================
 if __name__ == "__main__":
-    async def main():
-        await posting_app.initialize()
-        await welcome_app.initialize()
-        await setup_webhooks()
-        flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
-
-    asyncio.run(main())
+    main()
