@@ -162,9 +162,13 @@ bot_app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, message_handl
 
 @flask_app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), bot_app.bot)
-    asyncio.run_coroutine_threadsafe(bot_app.process_update(update), asyncio.get_event_loop())
-    return "ok"
+    try:
+        update = Update.de_json(request.get_json(force=True), bot_app.bot)
+        asyncio.run_coroutine_threadsafe(bot_app.process_update(update), asyncio.get_event_loop())
+        return "ok"
+    except Exception as e:
+        logger.error("Error di webhook:", e)
+        return "error", 500
 
 @flask_app.route("/")
 def index():
@@ -172,15 +176,16 @@ def index():
 
 # ====== SET WEBHOOK ======
 async def set_webhook():
-    url = os.environ.get("WEBHOOK_URL")  # Contoh: https://yourdomain.com/<TOKEN>
+    url = os.environ.get("WEBHOOK_URL")
     if not url:
-        logger.error("WEBHOOK_URL belum di set di environment variables!")
+        logger.warning("WEBHOOK_URL belum di set! Webhook tidak dipasang, gunakan polling.")
         return
     webhook_url = f"{url}/{TOKEN}"
     await bot_app.bot.set_webhook(webhook_url)
     logger.info(f"Webhook terpasang: {webhook_url}")
 
 if __name__ == "__main__":
-    # run webhook
     asyncio.run(set_webhook())
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    flask_app.run(host="0.0.0.0", port=port)
+
