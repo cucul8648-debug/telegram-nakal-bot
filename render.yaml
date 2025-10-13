@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: telegram-nakal-bot
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
+    envVars:
+      - key: TELEGRAM_TOKEN
+      - key: WEBHOOK_URL
+        value: "https://telegram-nakal-bot.onrender.com"
