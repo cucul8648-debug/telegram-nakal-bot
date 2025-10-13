@@ -1,27 +1,23 @@
-# filename: main.py
-# deploy: pip install -r requirements.txt
-# run: python main.py
-
 import os
 import logging
 import asyncio
-import threading
 from flask import Flask, request, abort
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+)
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, ContextTypes, filters
 )
 
-# ---------------- CONFIG ----------------
-# Use BOT_TOKEN env var (Render) or fallback to the token you provided
-TOKEN = os.environ.get("BOT_TOKEN", "8466148433:AAH9NFT_wrkBlZ-uO8hllAdxdTwFpLqip74")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://telegram-nakal-bot-1.onrender.com")
+# ---------------- CONFIG - REPLACE THESE ----------------
+TOKEN = os.environ.get("TELEGRAM_TOKEN", "8466148433:AAH9NFT_wrkBlZ-uO8hllAdxdTwFpLqip74")  # set via env var in production
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://telegram-nakal-bot.onrender.com")  # no trailing slash
 WEBHOOK_PATH = f"/{TOKEN}"
 PORT = int(os.environ.get("PORT", 10000))
 
-# Group + thread IDs (keep as provided)
+# Group + thread IDs (replace with real IDs)
 GROUP_NABRUTT = int(os.environ.get("GROUP_NABRUTT", -1003098333444))
 THREAD_MENFESS = int(os.environ.get("THREAD_MENFESS", 1036))
 THREAD_PAP = int(os.environ.get("THREAD_PAP", 393))
@@ -32,7 +28,7 @@ CHANNEL_MENFESS_ID = int(os.environ.get("CHANNEL_MENFESS_ID", -1002989043936))
 CHANNEL_PAP_ID = int(os.environ.get("CHANNEL_PAP_ID", -1003189592682))
 CHANNEL_MOAN_ID = int(os.environ.get("CHANNEL_MOAN_ID", -1003196180758))
 
-# GitHub RAW header image URLs (unchanged)
+# GitHub RAW header image URLs (replace paths if different)
 IMG_PAP_COWO = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/PapBrutt_Cowo.png"
 IMG_PAP_CEWE = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/PapBrutt_Cewe.png"
 IMG_VIDEO_COWO = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/VideoBrutt_Cowo.png"
@@ -58,42 +54,42 @@ logger = logging.getLogger(__name__)
 # ---------------- Flask app for webhook ----------------
 flask_app = Flask(__name__)
 
-# ---------------- Helpers / Keyboards ----------------
+# ---------------- Helpers ----------------
 def build_start_keyboard():
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("🤵‍♂ Cowok", callback_data="gender_cowo"),
-        InlineKeyboardButton("👩‍🦰 Cewek", callback_data="gender_cewe")
-    ]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤵‍♂ Cowok", callback_data="gender_cowo"),
+         InlineKeyboardButton("👩‍🦰 Cewek", callback_data="gender_cewe")]
+    ])
 
 def build_join_buttons(not_joined_urls):
-    buttons = [[InlineKeyboardButton("👉 Join", url=url)] for url in not_joined_urls]
+    buttons = [[InlineKeyboardButton(f"👉 Join", url=url)] for url in not_joined_urls]
     buttons.append([InlineKeyboardButton("✅ Sudah Join Semua", callback_data="join_done")])
     return InlineKeyboardMarkup(buttons)
 
 def build_post_menu():
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("💌 MenfessBRUTT", callback_data="post_menfess"),
-        InlineKeyboardButton("📸 PapBRUTT", callback_data="post_pap"),
-        InlineKeyboardButton("🎧 MoanBRUTT", callback_data="post_moan")
-    ]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💌 MenfessBRUTT", callback_data="post_menfess")],
+        [InlineKeyboardButton("📸 PapBRUTT", callback_data="post_pap")],
+        [InlineKeyboardButton("🎧 MoanBRUTT", callback_data="post_moan")]
+    ])
 
 def build_pap_type_keyboard():
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("📷 Foto", callback_data="pap_foto"),
-        InlineKeyboardButton("🎥 Video", callback_data="pap_video")
-    ]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📷 Foto", callback_data="pap_foto")],
+        [InlineKeyboardButton("🎥 Video", callback_data="pap_video")]
+    ])
 
 def build_retry_menu():
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton("💌 MenfessBRUTT", callback_data="post_menfess"),
-        InlineKeyboardButton("📸 PapBRUTT", callback_data="post_pap"),
-        InlineKeyboardButton("🎧 MoanBRUTT", callback_data="post_moan")
-    ]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💌 MenfessBRUTT", callback_data="post_menfess"),
+         InlineKeyboardButton("📸 PapBRUTT", callback_data="post_pap"),
+         InlineKeyboardButton("🎧 MoanBRUTT", callback_data="post_moan")]
+    ])
 
 async def check_all_membership(bot: Bot, user_id: int):
     """
-    Return list of URLs the user hasn't joined (empty => all joined).
-    If bot can't check (e.g. private channel or not admin), we include URL to force manual join.
+    Return list of URLs the user hasn't joined (empty list => all joined).
+    We try to get_chat_member for the group/channel; if not member, include URL.
     """
     checks = [
         (GROUP_NABRUTT, URL_NABRUTT),
@@ -108,7 +104,7 @@ async def check_all_membership(bot: Bot, user_id: int):
             if mem.status not in ["member", "administrator", "creator"]:
                 not_joined.append(url)
         except Exception:
-            # Can't verify -> ask user to join manually
+            # If API fails (private channel, bot not admin), better to ask user to join manually
             not_joined.append(url)
     return not_joined
 
@@ -143,6 +139,7 @@ def header_image_url(topik_key, gender, pap_type=None):
     return ""
 
 def format_channel_caption(topik_title_str, emoji_str, gender, caption_text):
+    # caption_text may be empty
     return (
         f"**{topik_title_str} {emoji_str}**\n\n"
         f"> **GENDER 🕵️ : {gender} {'🤵‍♂️' if gender=='COWO' else '👩‍🦰'}**\n\n"
@@ -176,18 +173,18 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
         not_joined = await check_all_membership(context.bot, user_id)
         if not_joined:
             # show join list and ask to confirm
-            text = (
+            await query.edit_message_text(
                 f"**Gender kamu: {gender} ✅**\n\n"
                 f"> ⚠️ Sebelum lanjut, wajib join semua group & channel di bawah ini:\n\n"
                 f"> 👉 {URL_NABRUTT}\n"
                 f"> 👉 {URL_GC_MENFESS}\n"
                 f"> 👉 {URL_GC_PAP}\n"
                 f"> 👉 {URL_GC_MOAN}\n\n"
-                f"> Jika sudah join semua, klik tombol di bawah 👇"
+                f"> Jika sudah join semua, klik tombol di bawah 👇",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ Sudah Join Semua", callback_data="join_done")]])
             )
-            await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=build_join_buttons(not_joined))
             return
-
         # else show post menu
         await query.edit_message_text(
             "**✅ Semua step sudah selesai!**\n\n> Pilih jenis postingan:",
@@ -198,6 +195,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     # after user clicked join_done
     if data == "join_done":
+        # re-check
         not_joined = await check_all_membership(context.bot, user_id)
         if not_joined:
             await query.answer("Kamu belum join semua group/channel. Cek link yang muncul.", show_alert=True)
@@ -216,6 +214,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
         return
 
     if data == "post_pap":
+        # ask type
         await query.message.reply_text("📸 Kamu memilih **PAPBRUTT**.\n\n> Pilih tipe yang mau kamu kirim:", parse_mode=ParseMode.MARKDOWN, reply_markup=build_pap_type_keyboard())
         return
 
@@ -233,25 +232,25 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     if data == "post_moan":
         context.user_data["topik"] = "MOAN"
+        # For MOAN flow: ask caption first
         context.user_data["awaiting_moan_caption"] = True
         await query.message.reply_text("🎙 Kamu memilih **MOANBRUTT**.\n\n> Masukkan caption :", parse_mode=ParseMode.MARKDOWN)
         return
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Handles text, photos, videos, voice.
-    State machine relies on context.user_data.
+    Handles text, photos, videos, voice. State machine relies on context.user_data:
+     - topik: "MENFESS"/"PAP"/"MOAN"
+     - pap_type: "pap_foto"/"pap_video"
+     - awaiting_moan_caption: True/False
+     - awaiting_moan_media: True/False
     """
-    # ignore non-message updates
-    if not update.message:
-        return
-
     user = update.message.from_user
     uid = user.id
     data = context.user_data
     topik = data.get("topik")
     pap_type = data.get("pap_type")
-    gender = data.get("gender", "COWO")  # fallback
+    gender = data.get("gender", "COWO")  # default fallback
 
     # If user is in MOAN caption step
     if data.get("awaiting_moan_caption"):
@@ -264,10 +263,12 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # If waiting for MOAN media (voice)
     if data.get("awaiting_moan_media"):
+        # Accept voice note
         if update.message.voice:
             caption_text = data.get("moan_caption", "")
+            # proceed to publish: same flow as below, but we know media is voice
             await publish_post(update, context, topik="MOAN", media_type="voice", gender=gender, caption_text=caption_text)
-            # reset
+            # reset MOAN state
             data.pop("awaiting_moan_media", None)
             data.pop("moan_caption", None)
             data.pop("topik", None)
@@ -278,13 +279,16 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Normal flows (Menfess, Pap)
     if topik == "MENFESS":
+        # expecting text content
         content = update.message.text or ""
         await publish_post(update, context, topik="MENFESS", media_type=None, gender=gender, caption_text=content)
         data.pop("topik", None)
         return
 
     if topik == "PAP":
+        # user must send photo if pap_foto or video if pap_video
         if pap_type == "pap_foto" and update.message.photo:
+            # get caption if any (text or caption field)
             caption_text = update.message.caption or ""
             await publish_post(update, context, topik="PAP", media_type="photo", gender=gender, caption_text=caption_text)
             data.pop("topik", None)
@@ -296,6 +300,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             data.pop("topik", None)
             data.pop("pap_type", None)
             return
+        # If wrong media
         await update.message.reply_text("⚠️ Silakan kirim file sesuai tipe yang dipilih (Foto/Video).", parse_mode=ParseMode.MARKDOWN)
         return
 
@@ -305,6 +310,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik: str, media_type: str, gender: str, caption_text: str):
     """
     Send preview to thread (with GitHub header image), then send full to channel (file-asli with has_spoiler=True where relevant).
+    topik: "MENFESS"/"PAP"/"MOAN"
+    media_type: None/Text, "photo", "video", "voice"
     """
     pap_type = context.user_data.get("pap_type", "")
     emoji = topik_emoji(topik, pap_type=pap_type)
@@ -319,6 +326,7 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
         f"👉 Klik tombol untuk lihat full di channel"
     )
 
+    # Which thread message_thread_id to use
     thread_map = {"MENFESS": THREAD_MENFESS, "PAP": THREAD_PAP, "MOAN": THREAD_MOAN}
     thread_id = thread_map.get(topik, THREAD_MENFESS)
 
@@ -334,15 +342,13 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
         )
     except Exception as e:
         logger.exception("Failed to send thread preview: %s", e)
-        # fallback: send text to thread
-        try:
-            await context.bot.send_message(chat_id=GROUP_NABRUTT, text=thread_caption, parse_mode=ParseMode.MARKDOWN, message_thread_id=thread_id)
-        except Exception:
-            logger.exception("Also failed to send fallback thread message")
+        # fallback: send text
+        await context.bot.send_message(chat_id=GROUP_NABRUTT, text=thread_caption, parse_mode=ParseMode.MARKDOWN)
 
-    # CHANNEL full post (file asli)
+    # CHANNEL full post (file asli — photo/video/voice or text)
     channel_caption = format_channel_caption(title, emoji, gender, caption_text)
 
+    # Choose channel id
     channel_id_map = {"MENFESS": CHANNEL_MENFESS_ID, "PAP": CHANNEL_PAP_ID, "MOAN": CHANNEL_MOAN_ID}
     channel_id = channel_id_map.get(topik, CHANNEL_MENFESS_ID)
 
@@ -359,33 +365,22 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
             await context.bot.send_message(chat_id=channel_id, text=channel_caption, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
         logger.exception("Failed to send to channel: %s", e)
-        try:
-            await update.message.reply_text("⚠️ Gagal mengirim ke channel. Cek log server.", parse_mode=ParseMode.MARKDOWN)
-        except Exception:
-            pass
+        await update.message.reply_text("⚠️ Gagal mengirim ke channel. Cek log server.", parse_mode=ParseMode.MARKDOWN)
 
     # Affirmation to user in private chat + retry menu
-    try:
-        await update.message.reply_text("✅ **Postingan kamu berhasil dikirim!**\n\n> Mau kirim apa lagi?", parse_mode=ParseMode.MARKDOWN, reply_markup=build_retry_menu())
-    except Exception:
-        logger.exception("Failed to send confirmation to user")
+    await update.message.reply_text("✅ **Postingan kamu berhasil dikirim!**\n\n> Mau kirim apa lagi?", parse_mode=ParseMode.MARKDOWN, reply_markup=build_retry_menu())
 
 # ---------------- Flask webhook endpoint ----------------
 @flask_app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
-    if request.method != "POST":
-        abort(400)
-    update_json = request.get_json(force=True)
-    update = Update.de_json(update_json, application.bot)
-    try:
+    if request.method == "POST":
+        update_json = request.get_json(force=True)
+        update = Update.de_json(update_json, application.bot)
+        # process update in background
         asyncio.run(application.process_update(update))
-    except Exception:
-        try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(application.process_update(update))
-        except Exception:
-            logger.exception("Failed to process update")
-    return "OK"
+        return "OK"
+    else:
+        abort(400)
 
 @flask_app.route("/", methods=["GET"])
 def home():
@@ -393,20 +388,23 @@ def home():
 
 # ---------------- Main ----------------
 if __name__ == "__main__":
+    # Build application
     application = Application.builder().token(TOKEN).build()
 
+    # Handlers
     application.add_handler(CommandHandler("start", start_handler))
     application.add_handler(CallbackQueryHandler(callback_query_handler))
     application.add_handler(MessageHandler(filters.ALL, message_handler))
 
-    # Start Flask in background thread
+    # Start Flask in a thread
+    import threading
     def run_flask():
         flask_app.run(host="0.0.0.0", port=PORT)
     threading.Thread(target=run_flask).start()
 
+    # Set webhook with Telegram using full URL: WEBHOOK_URL + WEBHOOK_PATH
     webhook_full = f"{WEBHOOK_URL}{WEBHOOK_PATH}"
     logger.info("Setting webhook to %s", webhook_full)
-
     application.run_webhook(
         listen="0.0.0.0",
         port=PORT,
