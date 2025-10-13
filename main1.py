@@ -57,7 +57,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("👩‍🦰 Cewek", callback_data="gender_cewe")]
     ]
     await update.message.reply_text(
-        "Selamat datang di EksibNih 🤖\n\nPilih jenis kelaminmu dulu ya:",
+        "Selamat datang di Nabrutt 🤖\n\nPilih jenis kelaminmu dulu ya:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -103,7 +103,7 @@ async def show_post_menu(query, gender):
     keyboard = [
         [InlineKeyboardButton("💌 MenfessBRUTT", callback_data="post_menfess")],
         [InlineKeyboardButton("📸 PapBRUTT", callback_data="post_pap")],
-        [InlineKeyboardButton("🎧 MoanBRUTT", callback_data="post_moan")]
+        [InlineKeyboardButton("🎙 MoanBRUTT", callback_data="post_moan")]
     ]
     await query.edit_message_text(
         "✅ Semua step sudah selesai!\n\nPilih jenis postingan:",
@@ -191,7 +191,7 @@ async def receive_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("💌 MenfessBRUTT", callback_data="post_menfess")],
             [InlineKeyboardButton("📸 PapBRUTT", callback_data="post_pap")],
-            [InlineKeyboardButton("🎧 MoanBRUTT", callback_data="post_moan")]
+            [InlineKeyboardButton("🎙 MoanBRUTT", callback_data="post_moan")]
         ])
     )
 
