@@ -1,15 +1,13 @@
 # filename: main.py
 # deploy: pip install -r requirements.txt
-# python main.py
+# run: python main.py
 
 import os
 import logging
 import asyncio
 import threading
 from flask import Flask, request, abort
-from telegram import (
-    Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
-)
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
@@ -17,13 +15,13 @@ from telegram.ext import (
 )
 
 # ---------------- CONFIG ----------------
-# DEFAULTS come from the values you provided. Prefer setting TELEGAM_TOKEN and WEBHOOK_URL as env vars.
-TOKEN = os.environ.get("TELEGRAM_TOKEN", "8466148433:AAH9NFT_wrkBlZ-uO8hllAdxdTwFpLqip74")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://telegram-nakal-bot.onrender.com")
+# Use BOT_TOKEN env var (Render) or fallback to the token you provided
+TOKEN = os.environ.get("BOT_TOKEN", "8466148433:AAH9NFT_wrkBlZ-uO8hllAdxdTwFpLqip74")
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://telegram-nakal-bot-1.onrender.com")
 WEBHOOK_PATH = f"/{TOKEN}"
 PORT = int(os.environ.get("PORT", 10000))
 
-# Group + thread IDs
+# Group + thread IDs (keep as provided)
 GROUP_NABRUTT = int(os.environ.get("GROUP_NABRUTT", -1003098333444))
 THREAD_MENFESS = int(os.environ.get("THREAD_MENFESS", 1036))
 THREAD_PAP = int(os.environ.get("THREAD_PAP", 393))
@@ -34,7 +32,7 @@ CHANNEL_MENFESS_ID = int(os.environ.get("CHANNEL_MENFESS_ID", -1002989043936))
 CHANNEL_PAP_ID = int(os.environ.get("CHANNEL_PAP_ID", -1003189592682))
 CHANNEL_MOAN_ID = int(os.environ.get("CHANNEL_MOAN_ID", -1003196180758))
 
-# GitHub RAW header image URLs
+# GitHub RAW header image URLs (unchanged)
 IMG_PAP_COWO = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/PapBrutt_Cowo.png"
 IMG_PAP_CEWE = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/PapBrutt_Cewe.png"
 IMG_VIDEO_COWO = "https://raw.githubusercontent.com/cucul8648-debug/telegram-nakal-bot/main/VideoBrutt_Cowo.png"
@@ -57,7 +55,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ---------------- Flask app for webhook (light) ----------------
+# ---------------- Flask app for webhook ----------------
 flask_app = Flask(__name__)
 
 # ---------------- Helpers / Keyboards ----------------
@@ -95,7 +93,7 @@ def build_retry_menu():
 async def check_all_membership(bot: Bot, user_id: int):
     """
     Return list of URLs the user hasn't joined (empty => all joined).
-    If get_chat_member fails (bot not admin/private), include URL to force user to join manually.
+    If bot can't check (e.g. private channel or not admin), we include URL to force manual join.
     """
     checks = [
         (GROUP_NABRUTT, URL_NABRUTT),
@@ -110,7 +108,7 @@ async def check_all_membership(bot: Bot, user_id: int):
             if mem.status not in ["member", "administrator", "creator"]:
                 not_joined.append(url)
         except Exception:
-            # can't check -> ask to join manually
+            # Can't verify -> ask user to join manually
             not_joined.append(url)
     return not_joined
 
@@ -187,11 +185,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
                 f"> 👉 {URL_GC_MOAN}\n\n"
                 f"> Jika sudah join semua, klik tombol di bawah 👇"
             )
-            await query.edit_message_text(
-                text,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=build_join_buttons(not_joined)
-            )
+            await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=build_join_buttons(not_joined))
             return
 
         # else show post menu
@@ -248,6 +242,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Handles text, photos, videos, voice.
     State machine relies on context.user_data.
     """
+    # ignore non-message updates
+    if not update.message:
+        return
+
     user = update.message.from_user
     uid = user.id
     data = context.user_data
@@ -306,14 +304,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik: str, media_type: str, gender: str, caption_text: str):
     """
-    Send preview to thread (with GitHub header image), then send full to channel.
+    Send preview to thread (with GitHub header image), then send full to channel (file-asli with has_spoiler=True where relevant).
     """
     pap_type = context.user_data.get("pap_type", "")
     emoji = topik_emoji(topik, pap_type=pap_type)
     title = topik_title(topik, pap_type=pap_type)
     header_url = header_image_url(topik, gender, pap_type=pap_type)
 
-    # THREAD preview content (header image from GitHub)
+    # THREAD preview content (header image from GitHub, displayed directly; no 2x tap)
     thread_caption = (
         f"**{title} {emoji}**\n\n"
         f"> **GENDER 🕵️ : {gender} {'🤵‍♂️' if gender=='COWO' else '👩‍🦰'}**\n\n"
@@ -325,25 +323,26 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
     thread_id = thread_map.get(topik, THREAD_MENFESS)
 
     try:
-        # Try to send header image to group thread
+        # send header image to group thread
         await context.bot.send_photo(
             chat_id=GROUP_NABRUTT,
             photo=header_url,
             caption=thread_caption,
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📨 Lihat Full", url=f"{WEBHOOK_URL}/channel-placeholder")]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📨 Lihat Full", url=f"{WEBHOOK_URL}/channel-link-placeholder")]]),
             message_thread_id=thread_id
         )
     except Exception as e:
         logger.exception("Failed to send thread preview: %s", e)
-        # fallback: send text
+        # fallback: send text to thread
         try:
             await context.bot.send_message(chat_id=GROUP_NABRUTT, text=thread_caption, parse_mode=ParseMode.MARKDOWN, message_thread_id=thread_id)
         except Exception:
             logger.exception("Also failed to send fallback thread message")
 
-    # CHANNEL full post
+    # CHANNEL full post (file asli)
     channel_caption = format_channel_caption(title, emoji, gender, caption_text)
+
     channel_id_map = {"MENFESS": CHANNEL_MENFESS_ID, "PAP": CHANNEL_PAP_ID, "MOAN": CHANNEL_MOAN_ID}
     channel_id = channel_id_map.get(topik, CHANNEL_MENFESS_ID)
 
@@ -365,7 +364,7 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
         except Exception:
             pass
 
-    # Affirm to user in private chat
+    # Affirmation to user in private chat + retry menu
     try:
         await update.message.reply_text("✅ **Postingan kamu berhasil dikirim!**\n\n> Mau kirim apa lagi?", parse_mode=ParseMode.MARKDOWN, reply_markup=build_retry_menu())
     except Exception:
@@ -378,11 +377,9 @@ def webhook():
         abort(400)
     update_json = request.get_json(force=True)
     update = Update.de_json(update_json, application.bot)
-    # process update asynchronously (no blocking)
     try:
         asyncio.run(application.process_update(update))
     except Exception:
-        # fallback: try to create a task if loop running
         try:
             loop = asyncio.get_event_loop()
             loop.create_task(application.process_update(update))
@@ -396,24 +393,20 @@ def home():
 
 # ---------------- Main ----------------
 if __name__ == "__main__":
-    # Build application
     application = Application.builder().token(TOKEN).build()
 
-    # Add handlers
     application.add_handler(CommandHandler("start", start_handler))
     application.add_handler(CallbackQueryHandler(callback_query_handler))
     application.add_handler(MessageHandler(filters.ALL, message_handler))
 
-    # Start Flask in a background thread (so Render's web process responds)
+    # Start Flask in background thread
     def run_flask():
         flask_app.run(host="0.0.0.0", port=PORT)
     threading.Thread(target=run_flask).start()
 
-    # Set webhook log
     webhook_full = f"{WEBHOOK_URL}{WEBHOOK_PATH}"
     logger.info("Setting webhook to %s", webhook_full)
 
-    # Use run_webhook - this will set webhook and run bot (keeps process alive)
     application.run_webhook(
         listen="0.0.0.0",
         port=PORT,
