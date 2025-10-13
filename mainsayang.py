@@ -152,35 +152,50 @@ async def send_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard_again)
     )
 
-# ====== FLASK APP ======
+# ==========================================================
+# ================== FLASK SERVER ==========================
+# ==========================================================
 flask_app = Flask(__name__)
-bot_app = Application.builder().token(TOKEN).build()
+posting_app = create_app_posting()
+welcome_app = create_app_welcome()
 
-bot_app.add_handler(CommandHandler("start", start_handler))
-bot_app.add_handler(CallbackQueryHandler(pilih_gender_callback, pattern="^gender_"))
-bot_app.add_handler(CallbackQueryHandler(pilih_jenis_callback, pattern="^jenis_"))
-bot_app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, message_handler))
-
-@flask_app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot_app.bot)
-    asyncio.run_coroutine_threadsafe(bot_app.process_update(update), asyncio.get_event_loop())
-    return "ok"
+# Buat event loop global untuk Render
+loop = asyncio.new_event_loop()
+threading.Thread(target=loop.run_forever, daemon=True).start()
 
 @flask_app.route("/")
-def index():
-    return "BRUTT Inline Bot Webhook Running!"
+def home():
+    return "🚀 NABRUTT BOT Webhook aktif!"
 
-# ====== SET WEBHOOK ======
-async def set_webhook():
-    url = os.environ.get("WEBHOOK_URL") or "https://telegram-nakal-bot.onrender.com"
-    webhook_url = f"{url}/{TOKEN}"
-    await bot_app.bot.set_webhook(webhook_url)
-    logger.info(f"Webhook terpasang: {webhook_url}")
+@flask_app.route("/posting", methods=["POST"])
+def webhook_posting():
+    update = Update.de_json(request.get_json(force=True), posting_app.bot)
+    asyncio.run_coroutine_threadsafe(posting_app.process_update(update), loop)
+    return "ok", 200
 
-# ====== MAIN ======
+@flask_app.route("/welcome", methods=["POST"])
+def webhook_welcome():
+    update = Update.de_json(request.get_json(force=True), welcome_app.bot)
+    asyncio.run_coroutine_threadsafe(welcome_app.process_update(update), loop)
+    return "ok", 200
+
+# ==========================================================
+# ================== SETUP WEBHOOK ==========================
+# ==========================================================
+async def setup_webhooks():
+    base_url = os.environ.get("RENDER_EXTERNAL_URL", "https://telegram-nakal-bot.onrender.com").rstrip("/")
+    await posting_app.bot.set_webhook(f"{base_url}/posting")
+    await welcome_app.bot.set_webhook(f"{base_url}/welcome")
+    logger.info(f"✅ Webhook diset ke {base_url}")
+
+# ==========================================================
+# ================== MAIN ==================================
+# ==========================================================
 if __name__ == "__main__":
-    # Pasang webhook dulu
-    asyncio.run(set_webhook())
-    # Jalankan Flask
-    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    async def main():
+        await posting_app.initialize()
+        await welcome_app.initialize()
+        await setup_webhooks()
+        flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+
+    asyncio.run(main())
