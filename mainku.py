@@ -43,7 +43,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
          InlineKeyboardButton("👩‍🦰 Cewek", callback_data="gender_cewe")]
     ]
     await update.message.reply_text(
-        "Selamat datang di EksibNih 🤖\n\nPilih jenis kelaminmu dulu ya:",
+        "Selamat datang di Nabrutt 🤖\n\nPilih jenis kelaminmu dulu ya:",
         reply_markup=InlineKeyboardMarkup(keyboard_gender)
     )
 
