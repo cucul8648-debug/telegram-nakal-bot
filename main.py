@@ -14,7 +14,7 @@ from telegram.ext import (
 )
 
 # ---------------- CONFIG ----------------
-TOKEN = os.environ.get("TELEGRAM_TOKEN", "8466148433:AAH9NFT_wrkBlZ-uO8hllAdxdTwFpLqip74")
+TOKEN = os.environ.get("TELEGRAM_TOKEN", "8466148433:AAHyMyVisRnEIaiGg6Fm7Oh6H-fDB0lYJfk")
 
 # Group Threads
 GROUP_NABRUTT = int(os.environ.get("GROUP_NABRUTT", -1003098333444))
