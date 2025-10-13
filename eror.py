@@ -1,4 +1,3 @@
-# main_webhook.py
 import os
 import logging
 import asyncio
