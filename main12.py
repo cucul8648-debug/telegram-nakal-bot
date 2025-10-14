@@ -359,25 +359,16 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
     await update.message.reply_text("<b>✅ Postingan kamu berhasil dikirim!</b>\n\nMau kirim lagi?", parse_mode=ParseMode.HTML, reply_markup=retry_keyboard())
 
 # ---------------- Flask webhook endpoint ----------------
-@flask_app.route(f"/{BOT_TOKEN}", methods=["POST"])
-def webhook():
-    if request.method == "POST":
-        update_json = request.get_json(force=True)
-        update = Update.de_json(update_json, Bot(BOT_TOKEN))
-        # schedule processing by the Application
-        asyncio.create_task(application.process_update(update))
-        return "OK"
-    return abort(400)
-
 @flask_app.route("/", methods=["GET"])
 def home():
     return "Bot is running ✅", 200
 
 
 @flask_app.route(f"/{BOT_TOKEN}", methods=["POST"])
-async def webhook():
-    """Terima update dari Telegram"""
-    update = Update.de_json(await request.get_json(), bot)
+async def telegram_webhook():
+    """Terima update dari Telegram (Render + PTB v20.3 compatible)"""
+    data = await request.get_json()
+    update = Update.de_json(data, bot)
     await application.update_queue.put(update)
     return "OK", 200
 
