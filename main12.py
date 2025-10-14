@@ -318,7 +318,7 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
             photo=header,
             caption=thread_caption,
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📨 Lihat Full (Channel)", url=(URL_GC_MENFESS if topik=="MENFESS" else (URL_GC_PAP if topik=="PAP" else URL_GC_MOAN))]]),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Lihat Full (Channel)", url=(URL_GC_MENFESS if topik=="MENFESS" else (URL_GC_PAP if topik=="PAP" else URL_GC_MOAN)))]]),
             message_thread_id=message_thread_id
         )
     except Exception as e:
