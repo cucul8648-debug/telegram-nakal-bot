@@ -8,7 +8,7 @@ import os
 import logging
 import asyncio
 from html import escape as html_escape
-from flask import Flask, request, abort
+from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
@@ -58,9 +58,8 @@ logger = logging.getLogger(__name__)
 
 # ---------------- FLASK APP ----------------
 flask_app = Flask(__name__)
-application = None  # akan diisi di main()
-bot = None          # global supaya bisa dipakai di webhook handler
-
+application = None
+bot = None
 
 # ---------------- Helpers ----------------
 def start_keyboard():
@@ -357,33 +356,37 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
 
     # send confirmation to user (private chat) with retry option
     await update.message.reply_text("<b>✅ Postingan kamu berhasil dikirim!</b>\n\nMau kirim lagi?", parse_mode=ParseMode.HTML, reply_markup=retry_keyboard())
-
 # ---------------- FLASK ROUTES ----------------
 @flask_app.route("/", methods=["GET"])
 def home():
     return "Bot is running ✅", 200
 
-
 @flask_app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def telegram_webhook():
+    """
+    Webhook endpoint untuk Telegram.
+    Gunakan asyncio.run() agar async handler bisa dipanggil tanpa loop aktif.
+    """
     update_json = request.get_json(force=True)
     update = Update.de_json(update_json, bot)
-    asyncio.create_task(application.process_update(update))
+
+    # Jalankan async handler dengan loop baru
+    asyncio.run(application.process_update(update))
+
     return "OK", 200
 
-
-# ---------------- MAIN APP ----------------
+# ---------------- MAIN ----------------
 def main():
-    global application, bot
+    global bot, application
 
     if not BOT_TOKEN or BOT_TOKEN.startswith("<PUT"):
-        logger.error("❌ BOT_TOKEN belum diset. Pastikan variabel BOT_TOKEN ada di Render.")
+        logger.error("❌ BOT_TOKEN belum diset!")
         return
 
     bot = Bot(BOT_TOKEN)
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # Register handlers
+    # Tambahkan handlers
     application.add_handler(CommandHandler("start", start_handler))
     application.add_handler(CallbackQueryHandler(callback_handler))
     application.add_handler(MessageHandler(filters.ALL, message_handler))
@@ -397,7 +400,5 @@ def main():
     logger.info("Starting Flask server on port %s", PORT)
     flask_app.run(host="0.0.0.0", port=PORT)
 
-
-# ---------------- ENTRY POINT ----------------
 if __name__ == "__main__":
     main()
