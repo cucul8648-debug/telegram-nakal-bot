@@ -365,14 +365,12 @@ def home():
 
 
 @flask_app.route(f"/{BOT_TOKEN}", methods=["POST"])
-async def telegram_webhook():
-    """Terima update dari Telegram (Render + PTB v20.3 compatible)"""
-    data = await request.get_json()
-    update = Update.de_json(data, bot)
-    await application.update_queue.put(update)
+def telegram_webhook():
+    update_json = request.get_json(force=True)
+    update = Update.de_json(update_json, bot)
+    asyncio.create_task(application.process_update(update))
     return "OK", 200
-
-
+    
 def main():
     global application, bot
 
