@@ -56,11 +56,11 @@ URL_GC_MOAN    = os.environ.get("URL_GC_MOAN", "https://t.me/MOAN18NABRUTT")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# ---------------- APP & BOT ----------------
+# ---------------- FLASK APP ----------------
 flask_app = Flask(__name__)
+application = None  # akan diisi di main()
+bot = None          # global supaya bisa dipakai di webhook handler
 
-# We'll instantiate Application later (after BOT_TOKEN check)
-application = None
 
 # ---------------- Helpers ----------------
 def start_keyboard():
@@ -358,7 +358,7 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
     # send confirmation to user (private chat) with retry option
     await update.message.reply_text("<b>✅ Postingan kamu berhasil dikirim!</b>\n\nMau kirim lagi?", parse_mode=ParseMode.HTML, reply_markup=retry_keyboard())
 
-# ---------------- Flask webhook endpoint ----------------
+# ---------------- FLASK ROUTES ----------------
 @flask_app.route("/", methods=["GET"])
 def home():
     return "Bot is running ✅", 200
@@ -370,35 +370,34 @@ def telegram_webhook():
     update = Update.de_json(update_json, bot)
     asyncio.create_task(application.process_update(update))
     return "OK", 200
-    
+
+
+# ---------------- MAIN APP ----------------
 def main():
     global application, bot
 
-    if BOT_TOKEN is None or BOT_TOKEN.strip() == "" or BOT_TOKEN.startswith("<PUT"):
-        logger.error("BOT_TOKEN not set. Please set environment variable BOT_TOKEN.")
+    if not BOT_TOKEN or BOT_TOKEN.startswith("<PUT"):
+        logger.error("❌ BOT_TOKEN belum diset. Pastikan variabel BOT_TOKEN ada di Render.")
         return
 
-    # Buat bot & app Telegram
     bot = Bot(BOT_TOKEN)
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # Tambahkan handlers
+    # Register handlers
     application.add_handler(CommandHandler("start", start_handler))
-    application.add_handler(CallbackQueryHandler(callback_handler, pattern="^(post_menfess|post_pap|post_moan|pap_foto|pap_video|join_done|repost_last)$"))
-    application.add_handler(CallbackQueryHandler(callback_handler, pattern="^(gender_cowo|gender_cewe)$"))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-    application.add_handler(MessageHandler(filters.PHOTO | filters.VIDEO | filters.VOICE | filters.AUDIO, message_handler))
+    application.add_handler(CallbackQueryHandler(callback_handler))
+    application.add_handler(MessageHandler(filters.ALL, message_handler))
 
-    # Set webhook (gunakan asyncio agar tidak ada warning)
+    # Set webhook
     webhook_url = f"{WEBHOOK_URL}/{BOT_TOKEN}"
     logger.info("Setting webhook to %s", webhook_url)
-    import asyncio
     asyncio.run(bot.set_webhook(webhook_url))
 
-    # Jalankan Flask server
-    logger.info("Starting Flask (webhook receiver) on port %s", PORT)
+    # Jalankan Flask
+    logger.info("Starting Flask server on port %s", PORT)
     flask_app.run(host="0.0.0.0", port=PORT)
 
 
+# ---------------- ENTRY POINT ----------------
 if __name__ == "__main__":
     main()
