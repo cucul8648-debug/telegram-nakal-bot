@@ -317,36 +317,27 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
 def home():
     return "Bot is running ✅", 200
 
-@flask_app.route("/posting", methods=["POST"])
-def posting_route():
-    return "Endpoint /posting aktif ✅", 200
-
-@flask_app.route("/welcome", methods=["POST"])
-def welcome_route():
-    return "Endpoint /welcome aktif ✅", 200
-
 @flask_app.route(f"/{BOT_TOKEN}", methods=["POST"])
 def telegram_webhook():
     update_json = request.get_json(force=True)
     update = Update.de_json(update_json, bot)
-    try:
-        asyncio.run(application.process_update(update))
-    except Exception as e:
-        logger.exception("Error processing update: %s", e)
+
+    async def process():
+        if not application.is_initialized:
+            await application.initialize()  # <- wajib agar process_update tidak error
+        await application.process_update(update)
+
+    asyncio.run(process())
     return "OK", 200
 
 # ---------------- MAIN ----------------
 def main():
     global bot, application
 
-    if not BOT_TOKEN or BOT_TOKEN.startswith("<PUT"):
-        logger.error("❌ BOT_TOKEN belum diset!")
-        return
-
     bot = Bot(BOT_TOKEN)
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # Tambahkan handlers
+    # Tambahkan semua handler
     application.add_handler(CommandHandler("start", start_handler))
     application.add_handler(CallbackQueryHandler(callback_handler))
     application.add_handler(MessageHandler(filters.ALL, message_handler))
