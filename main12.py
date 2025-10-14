@@ -371,33 +371,45 @@ def webhook():
 
 @flask_app.route("/", methods=["GET"])
 def home():
-    return "Bot is running", 200
+    return "Bot is running ✅", 200
 
-# ---------------- Main ----------------
+
+@flask_app.route(f"/{BOT_TOKEN}", methods=["POST"])
+async def webhook():
+    """Terima update dari Telegram"""
+    update = Update.de_json(await request.get_json(), bot)
+    await application.update_queue.put(update)
+    return "OK", 200
+
+
 def main():
-    global application
+    global application, bot
+
     if BOT_TOKEN is None or BOT_TOKEN.strip() == "" or BOT_TOKEN.startswith("<PUT"):
         logger.error("BOT_TOKEN not set. Please set environment variable BOT_TOKEN.")
         return
 
+    # Buat bot & app Telegram
+    bot = Bot(BOT_TOKEN)
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # handlers
+    # Tambahkan handlers
     application.add_handler(CommandHandler("start", start_handler))
     application.add_handler(CallbackQueryHandler(callback_handler, pattern="^(post_menfess|post_pap|post_moan|pap_foto|pap_video|join_done|repost_last)$"))
     application.add_handler(CallbackQueryHandler(callback_handler, pattern="^(gender_cowo|gender_cewe)$"))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     application.add_handler(MessageHandler(filters.PHOTO | filters.VIDEO | filters.VOICE | filters.AUDIO, message_handler))
 
-    # set webhook via Telegram API
-    bot = Bot(BOT_TOKEN)
+    # Set webhook (gunakan asyncio agar tidak ada warning)
     webhook_url = f"{WEBHOOK_URL}/{BOT_TOKEN}"
     logger.info("Setting webhook to %s", webhook_url)
-    bot.set_webhook(webhook_url)
+    import asyncio
+    asyncio.run(bot.set_webhook(webhook_url))
 
-    # run Flask (Render will expose the port)
+    # Jalankan Flask server
     logger.info("Starting Flask (webhook receiver) on port %s", PORT)
     flask_app.run(host="0.0.0.0", port=PORT)
+
 
 if __name__ == "__main__":
     main()
