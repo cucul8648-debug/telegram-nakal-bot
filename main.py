@@ -140,7 +140,8 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text(
         "👋 Selamat datang di Nabrutt 🤖\n\nPilih jenis kelaminmu terlebih dahulu:",
-        reply_markup=gender_keyboard()
+        reply_markup=gender_keyboard(),
+        protect_content=True
     )
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -190,7 +191,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ---------- PILIH POSTINGAN (dari main_polling_final.py) ----------
+    # ---------- PILIH POSTINGAN ----------
     if data=="post_menfess":
         user_data["topic"] = "MENFESS"
         await query.message.edit_text("<b>💌 Kamu memilih MENFESSBRUTT.</b>\n\nKirim teks menfess kamu sekarang.", parse_mode=ParseMode.HTML)
@@ -228,7 +229,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data["caption"] = update.message.text or ""
         user_data.pop("await_moan_caption", None)
         user_data["await_moan_media"] = True
-        await update.message.reply_text("<b>✅ Caption berhasil dimasukkan!</b>\n\nKirim voice note (moan) sekarang 🎧", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("<b>✅ Caption berhasil dimasukkan!</b>\n\nKirim voice note (moan) sekarang 🎧", parse_mode=ParseMode.HTML, protect_content=True)
         return
 
     # MOAN media
@@ -237,7 +238,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await publish_post(update, context, topik="MOAN", media_type="voice", gender=gender, caption_text=user_data.get("caption",""))
             user_data.clear()
         else:
-            await update.message.reply_text("⚠️ Mohon kirim file voice/audio untuk MOAN.", parse_mode=ParseMode.HTML)
+            await update.message.reply_text("⚠️ Mohon kirim file voice/audio untuk MOAN.", parse_mode=ParseMode.HTML, protect_content=True)
         return
 
     # MENFESS → teks saja
@@ -256,10 +257,10 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await publish_post(update, context, topik="PAP", media_type="video", gender=gender, caption_text=update.message.caption or "")
             user_data.clear()
             return
-        await update.message.reply_text("⚠️ Silakan kirim file sesuai tipe yang dipilih (Foto/Video).", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("⚠️ Silakan kirim file sesuai tipe yang dipilih (Foto/Video).", parse_mode=ParseMode.HTML, protect_content=True)
         return
 
-    await update.message.reply_text("⚠️ Gunakan tombol menu untuk mulai (/start).", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("⚠️ Gunakan tombol menu untuk mulai (/start).", parse_mode=ParseMode.HTML, protect_content=True)
 
 # ---------------- PUBLISH FUNCTION ----------------
 async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik: str, media_type: str, gender: str, caption_text: str):
@@ -279,11 +280,12 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
             caption=format_thread_caption_html(title, emoji, gender, caption_text, channel_mention),
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔗 Lihat Full (Channel)", url=(URL_GC_MENFESS if topik=="MENFESS" else (URL_GC_PAP if topik=="PAP" else URL_GC_MOAN)))]]),
-            message_thread_id=message_thread_id
+            message_thread_id=message_thread_id,
+            protect_content=True
         )
     except Exception as e:
         logger.exception("Failed to send thread preview: %s", e)
-        await context.bot.send_message(chat_id=GROUP_NABRUTT, text=caption_text, parse_mode=ParseMode.HTML)
+        await context.bot.send_message(chat_id=GROUP_NABRUTT, text=caption_text, parse_mode=ParseMode.HTML, protect_content=True)
 
     # ---------- Kirim ke channel ----------
     channel_map = {"MENFESS": CHANNEL_MENFESS_ID,"PAP": CHANNEL_PAP_ID,"MOAN": CHANNEL_MOAN_ID}
@@ -292,22 +294,22 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
 
     try:
         if media_type=="photo" and update.message.photo:
-            await context.bot.send_photo(chat_id=channel_id, photo=update.message.photo[-1].file_id, caption=channel_caption, parse_mode=ParseMode.HTML, has_spoiler=True)
+            await context.bot.send_photo(chat_id=channel_id, photo=update.message.photo[-1].file_id, caption=channel_caption, parse_mode=ParseMode.HTML, has_spoiler=True, protect_content=True)
         elif media_type=="video" and update.message.video:
-            await context.bot.send_video(chat_id=channel_id, video=update.message.video.file_id, caption=channel_caption, parse_mode=ParseMode.HTML, has_spoiler=True)
+            await context.bot.send_video(chat_id=channel_id, video=update.message.video.file_id, caption=channel_caption, parse_mode=ParseMode.HTML, has_spoiler=True, protect_content=True)
         elif media_type=="voice" and update.message.voice:
-            await context.bot.send_voice(chat_id=channel_id, voice=update.message.voice.file_id, caption=channel_caption, parse_mode=ParseMode.HTML)
+            await context.bot.send_voice(chat_id=channel_id, voice=update.message.voice.file_id, caption=channel_caption, parse_mode=ParseMode.HTML, protect_content=True)
         elif media_type=="audio" and update.message.audio:
-            await context.bot.send_audio(chat_id=channel_id, audio=update.message.audio.file_id, caption=channel_caption, parse_mode=ParseMode.HTML)
+            await context.bot.send_audio(chat_id=channel_id, audio=update.message.audio.file_id, caption=channel_caption, parse_mode=ParseMode.HTML, protect_content=True)
         else:
-            await context.bot.send_message(chat_id=channel_id, text=channel_caption, parse_mode=ParseMode.HTML)
+            await context.bot.send_message(chat_id=channel_id, text=channel_caption, parse_mode=ParseMode.HTML, protect_content=True)
     except Exception as e:
         logger.exception("Failed to send to channel: %s", e)
-        await update.message.reply_text("⚠️ Gagal mengirim ke channel. Cek log.", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("⚠️ Gagal mengirim ke channel. Cek log.", parse_mode=ParseMode.HTML, protect_content=True)
         return
 
     # ---------- Balas ke user + tombol kirim lagi ----------
-    await update.message.reply_text("<b>✅ Postingan kamu berhasil dikirim!</b>\n\nMau kirim apa lagi?", parse_mode=ParseMode.HTML, reply_markup=retry_keyboard())
+    await update.message.reply_text("<b>✅ Postingan kamu berhasil dikirim!</b>\n\nMau kirim apa lagi?", parse_mode=ParseMode.HTML, reply_markup=retry_keyboard(), protect_content=True)
 
 # ---------------- MAIN ----------------
 def main():
