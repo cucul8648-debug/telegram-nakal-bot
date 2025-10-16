@@ -14,7 +14,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 
 # ---------------- CONFIG ----------------
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8466148433:AAHIsxkSbx4ddtT2giEWtGGIh6e3OPcv7FA")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://your-domain.com/webhook")  # ganti domainmu!
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "https://telegram-nakal-bot.onrender.com")  # ganti domainmu!
 
 GROUP_NABRUTT = int(os.environ.get("GROUP_NABRUTT", -1003098333444))
 THREAD_MENFESS = int(os.environ.get("THREAD_MENFESS", 1036))
