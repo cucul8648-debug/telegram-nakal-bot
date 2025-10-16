@@ -1,28 +1,29 @@
+# filename: main_polling_final_joinquote_posting_gudang.py
+# requirements:
+#   python-telegram-bot==20.3
+#   python-dotenv==1.0.1
+
 import os
 import logging
-import asyncio
 from html import escape as html_escape
-from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from telegram.constants import ParseMode
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 # ---------------- CONFIG ----------------
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_PATH = "/webhook"
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
-PORT = int(os.environ.get("PORT", 5000))
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8466148433:AAHIsxkSbx4ddtT2giEWtGGIh6e3OPcv7FA")
 
-GROUP_NABRUTT = int(os.environ.get("GROUP_NABRUTT"))
-THREAD_MENFESS = int(os.environ.get("THREAD_MENFESS"))
-THREAD_PAP     = int(os.environ.get("THREAD_PAP"))
-THREAD_MOAN    = int(os.environ.get("THREAD_MOAN"))
+GROUP_NABRUTT = int(os.environ.get("GROUP_NABRUTT", -1003098333444))
+THREAD_MENFESS = int(os.environ.get("THREAD_MENFESS", 1036))
+THREAD_PAP     = int(os.environ.get("THREAD_PAP", 393))
+THREAD_MOAN    = int(os.environ.get("THREAD_MOAN", 2298))
 
-CHANNEL_MENFESS_ID  = int(os.environ.get("CHANNEL_MENFESS_ID"))
-CHANNEL_PAP_ID      = int(os.environ.get("CHANNEL_PAP_ID"))
-CHANNEL_PAP_COWO_ID = int(os.environ.get("CHANNEL_PAP_COWO_ID"))
-CHANNEL_MOAN_ID     = int(os.environ.get("CHANNEL_MOAN_ID"))
-CHANNEL_GUDANG_ID   = int(os.environ.get("CHANNEL_GUDANG_ID"))
+CHANNEL_MENFESS_ID  = int(os.environ.get("CHANNEL_MENFESS_ID", -1002989043936))
+CHANNEL_PAP_ID      = int(os.environ.get("CHANNEL_PAP_ID", -1003163832814))
+CHANNEL_PAP_COWO_ID = int(os.environ.get("CHANNEL_PAP_COWO_ID", -1003105091308))
+CHANNEL_MOAN_ID     = int(os.environ.get("CHANNEL_MOAN_ID", -1003196180758))
+
+CHANNEL_GUDANG_ID   = int(os.environ.get("CHANNEL_GUDANG_ID", -1003013806700))
 
 CH_USERNAME = {
     "MENFESS": "@MenfessNABRUTT",
@@ -49,10 +50,6 @@ URL_GC_MOAN       = "https://t.me/MOAN18NABRUTT"
 # ---------------- LOGGING ----------------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-
-# ---------------- FLASK APP ----------------
-app = Flask(__name__)
-application = Application.builder().token(BOT_TOKEN).build()
 
 # ---------------- KEYBOARDS ----------------
 def gender_keyboard():
@@ -361,31 +358,14 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
         protect_content=True
     )
 
-
-# ---------------- FLASK WEBHOOK ----------------
-@app.route(WEBHOOK_PATH, methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    loop.create_task(application.update_queue.put(update))
-    return "OK", 200
-
 # ---------------- MAIN ----------------
 def main():
-    logger.info(f"Setting webhook to {WEBHOOK_URL} ...")
-
-    async def setup_webhook():
-        await application.bot.delete_webhook()
-        await application.bot.set_webhook(WEBHOOK_URL)
-
-    asyncio.run(setup_webhook())
-
-    logger.info("Starting Flask server for webhook...")
-    app.run(host="0.0.0.0", port=PORT)
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start_handler))
+    application.add_handler(CallbackQueryHandler(callback_handler))
+    application.add_handler(MessageHandler(filters.ALL, message_handler))
+    logger.info("Bot started in polling mode...")
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
