@@ -361,6 +361,7 @@ async def publish_post(update: Update, context: ContextTypes.DEFAULT_TYPE, topik
         protect_content=True
     )
 
+
 # ---------------- FLASK WEBHOOK ----------------
 @app.route(WEBHOOK_PATH, methods=["POST"])
 def webhook():
@@ -376,10 +377,13 @@ def webhook():
 # ---------------- MAIN ----------------
 def main():
     logger.info(f"Setting webhook to {WEBHOOK_URL} ...")
-    bot = application.bot
-    bot.delete_webhook()
-    bot.set_webhook(WEBHOOK_URL)
-    
+
+    async def setup_webhook():
+        await application.bot.delete_webhook()
+        await application.bot.set_webhook(WEBHOOK_URL)
+
+    asyncio.run(setup_webhook())
+
     logger.info("Starting Flask server for webhook...")
     app.run(host="0.0.0.0", port=PORT)
 
